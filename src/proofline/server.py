@@ -16,7 +16,13 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from proofline.demo import DEMO_PATH, load_demo
-from proofline.llm import OpenAIExtractor
+from proofline.llm import (
+    create_extractor,
+    provider_is_configured,
+    provider_key_name,
+    provider_model,
+    provider_name,
+)
 from proofline.pipeline import KnowledgeLayer
 from proofline.store import Store
 
@@ -37,7 +43,7 @@ class JobManager:
             job = self._jobs.get(job_id)
             return dict(job) if job else None
 
-    def submit(self, paths: list[Path], store: Store, model: str) -> dict:
+    def submit(self, paths: list[Path], store: Store, provider: str, model: str) -> dict:
         job_id = uuid.uuid4().hex[:12]
         with self._lock:
             self._jobs[job_id] = {
@@ -48,17 +54,17 @@ class JobManager:
                 "total": 0,
                 "results": [],
             }
-        self._executor.submit(self._run, job_id, paths, store, model)
+        self._executor.submit(self._run, job_id, paths, store, provider, model)
         return self.get(job_id) or {}
 
     def _update(self, job_id: str, **values: object) -> None:
         with self._lock:
             self._jobs[job_id].update(values)
 
-    def _run(self, job_id: str, paths: list[Path], store: Store, model: str) -> None:
+    def _run(self, job_id: str, paths: list[Path], store: Store, provider: str, model: str) -> None:
         self._update(job_id, status="running", message="Starting page-aware extraction")
         try:
-            layer = KnowledgeLayer(store, OpenAIExtractor(model=model))
+            layer = KnowledgeLayer(store, create_extractor(provider=provider, model=model))
             results = []
 
             def progress(name: str, current: int, total: int) -> None:
@@ -119,9 +125,12 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     @app.get("/api/config")
     def config() -> dict:
+        active_provider = provider_name()
         return {
-            "live_processing": bool(os.getenv("OPENAI_API_KEY")),
-            "model": os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
+            "live_processing": provider_is_configured(active_provider),
+            "provider": active_provider,
+            "credential": provider_key_name(active_provider),
+            "model": provider_model(active_provider),
             "max_upload_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
             "demo_name": "India macroeconomy",
         }
@@ -226,10 +235,12 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     @app.post("/api/uploads", status_code=202)
     async def upload_pdfs(files: Annotated[list[UploadFile], File()]) -> dict:
-        if not os.getenv("OPENAI_API_KEY"):
+        active_provider = provider_name()
+        if not provider_is_configured(active_provider):
+            key_name = provider_key_name(active_provider)
             raise HTTPException(
                 status_code=503,
-                detail="Set OPENAI_API_KEY in the server environment to process new PDFs.",
+                detail=f"Set {key_name} in the server environment to process new PDFs.",
             )
         if not files:
             raise HTTPException(status_code=400, detail="Upload at least one PDF")
@@ -252,7 +263,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         job = jobs.submit(
             saved_paths,
             store,
-            model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
+            provider=active_provider,
+            model=provider_model(active_provider),
         )
         return job
 

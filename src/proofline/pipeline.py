@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from proofline.llm import OpenAIExtractor
+from proofline.llm import Extractor
 from proofline.relations import candidate_pairs
 from proofline.schemas import RelationType, StoredFact, StoredRelation
 from proofline.store import Store
@@ -25,7 +25,7 @@ class IngestResult:
 
 
 class KnowledgeLayer:
-    def __init__(self, store: Store, extractor: OpenAIExtractor):
+    def __init__(self, store: Store, extractor: Extractor):
         self.store = store
         self.extractor = extractor
 
@@ -124,7 +124,7 @@ class KnowledgeLayer:
                         document_name=pdf_path.name,
                         chunk_index=chunk.index,
                         evidence_status=evidence_status,
-                        extraction_method=f"openai:{self.extractor.model}",
+                        extraction_method=f"{self.extractor.provider}:{self.extractor.model}",
                     )
                     self.store.add_fact(fact)
                     facts_added += 1

@@ -32,6 +32,8 @@ def test_demo_exposes_all_required_cases(tmp_path: Path) -> None:
 
 
 def test_page_evidence_and_no_key_upload_guard(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("PROOFLINE_PROVIDER", "gemini")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     client = TestClient(create_app(tmp_path / "api.db"))
 
@@ -50,4 +52,4 @@ def test_page_evidence_and_no_key_upload_guard(tmp_path: Path, monkeypatch) -> N
     else:
         assert page_image.status_code == 404
     assert upload.status_code == 503
-    assert "OPENAI_API_KEY" in upload.json()["detail"]
+    assert "GEMINI_API_KEY" in upload.json()["detail"]

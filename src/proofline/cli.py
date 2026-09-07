@@ -6,7 +6,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from proofline.llm import OpenAIExtractor
+from proofline.llm import (
+    create_extractor,
+    provider_is_configured,
+    provider_key_name,
+    provider_model,
+    provider_name,
+)
 from proofline.pipeline import KnowledgeLayer
 from proofline.store import Store
 
@@ -23,12 +29,13 @@ def main() -> None:
     parser.add_argument("--skip-relations", action="store_true")
     args = parser.parse_args()
 
-    if not os.getenv("OPENAI_API_KEY"):
-        parser.error("OPENAI_API_KEY is required to process new PDFs")
+    active_provider = provider_name()
+    if not provider_is_configured(active_provider):
+        parser.error(f"{provider_key_name(active_provider)} is required to process new PDFs")
 
     layer = KnowledgeLayer(
         Store(args.db),
-        OpenAIExtractor(model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini")),
+        create_extractor(active_provider, provider_model(active_provider)),
     )
     for path in args.pdfs:
         result = layer.ingest_pdf(

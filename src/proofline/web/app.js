@@ -159,8 +159,8 @@ async function refresh() {
     renderSummary(); renderRelationships(); renderFacts(); renderDocuments(); renderFailures();
     byId("processingMode").className = `mode-note ${config.live_processing ? "" : "offline"}`;
     byId("processingMode").textContent = config.live_processing
-      ? `Live processing is enabled with ${config.model}. Files are processed incrementally in the background.`
-      : "Curated demo mode is active. Set OPENAI_API_KEY in .env and restart the server to process new PDFs.";
+      ? `Live processing is enabled with ${config.provider}/${config.model}. Files are processed incrementally in the background.`
+      : `Curated demo mode is active. Set ${config.credential} in .env and restart the server to process new PDFs.`;
     byId("processFiles").disabled = !config.live_processing;
   } catch (error) {
     showToast(error.message);

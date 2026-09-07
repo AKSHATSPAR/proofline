@@ -12,7 +12,7 @@ India macroeconomy reports and works without credentials.”
 
 Click **Add PDFs**. If recording with an API key, upload one starter PDF and show the background
 progress. Otherwise explain that the precomputed sample follows the same pipeline and that new
-uploads are enabled by setting `OPENAI_API_KEY`.
+uploads are enabled with a free-tier `GEMINI_API_KEY`.
 
 Mention content hashing, page-separated chunks, and the fail-closed evidence gate.
 

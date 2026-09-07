@@ -8,6 +8,7 @@ from proofline.store import Store
 
 
 class FakeExtractor:
+    provider = "fake"
     model = "fake"
 
     def extract(self, document_name: str, chunk_text: str) -> FactBatch:
@@ -52,7 +53,7 @@ def test_ingestion_is_grounded_and_incremental(tmp_path: Path) -> None:
     pdf_path = tmp_path / "annual-report.pdf"
     make_pdf(pdf_path)
     store = Store(tmp_path / "proofline.db")
-    layer = KnowledgeLayer(store, FakeExtractor())  # type: ignore[arg-type]
+    layer = KnowledgeLayer(store, FakeExtractor())
 
     first = layer.ingest_pdf(pdf_path)
     second = layer.ingest_pdf(pdf_path)
@@ -64,3 +65,4 @@ def test_ingestion_is_grounded_and_incremental(tmp_path: Path) -> None:
     assert len(facts) == 1
     assert facts[0].evidence_status == "exact"
     assert facts[0].normalized_value == 81_420
+    assert facts[0].extraction_method == "fake:fake"

@@ -5,7 +5,8 @@ rejects evidence it cannot verify, and explains whether cross-document facts cor
 contradict, or reconcile through context.
 
 The repository opens with a source-verified India macroeconomy demo, so the complete review
-experience works without credentials. An OpenAI API key is only needed to process new PDFs.
+experience works without credentials. Processing new PDFs uses Gemini's free API tier by default;
+OpenAI remains an optional provider.
 
 ## Setup and Run Instructions
 
@@ -24,9 +25,17 @@ To process additional PDFs:
 
 ```bash
 cp .env.example .env
-# Add OPENAI_API_KEY to .env, then restart the server.
+# Create a free key at https://aistudio.google.com/app/apikey,
+# add it as GEMINI_API_KEY in .env, then restart the server.
 uv run proofline-serve
 ```
+
+Keep the Google AI Studio project on the **Free Tier** and do not select **Set up billing**. The
+default model is `gemini-3.8-flash`. Google states that free-tier prompts and responses may be used
+to improve its products, so use the included public starter documents—not confidential material.
+
+To use OpenAI instead, set `PROOFLINE_PROVIDER=openai` and `OPENAI_API_KEY` in `.env`. Provider keys
+stay server-side and are never sent to the browser.
 
 The UI accepts several PDFs at once and processes them in a background job. The CLI uses the same
 pipeline:
@@ -124,6 +133,8 @@ Relationships are appended for new cross-document candidates instead of rebuildi
 - Page-level provenance is robust to printed page numbers that jump inside curated excerpts.
 - API calls operate on bounded chunks, while content hashes and candidate blocking control repeat
   work and pairwise cost.
+- The model adapter is provider-independent. Gemini's no-payment free tier is the default for easy
+  evaluation, while an OpenAI adapter is retained for teams that already have API billing.
 
 ## Limitations and Next Steps
 
@@ -141,11 +152,12 @@ Relationships are appended for new cross-document candidates instead of rebuildi
 
 ## Additional Notes
 
-The repository never stores API credentials. `OPENAI_API_KEY` is read from the local environment,
-and responses are requested with storage disabled. The included JSON sample contains selected,
-manually source-verified outputs, not hard-coded extraction logic; uploaded documents always travel
-through the general pipeline.
+The repository never stores API credentials. `GEMINI_API_KEY` or `OPENAI_API_KEY` is read from the
+local environment. OpenAI responses are requested with storage disabled. The included JSON sample
+contains selected, manually source-verified outputs, not hard-coded extraction logic; uploaded
+documents always travel through the general pipeline.
 
-AI tools used: Codex supported implementation and source inspection. The runtime uses the OpenAI
-Responses API with strict JSON Schema outputs for extraction and relationship adjudication. All
-accepted evidence still passes a deterministic page-level gate outside the model.
+AI tools used: Codex supported implementation and source inspection. The default runtime uses the
+Gemini API's JSON Schema outputs for extraction and relationship adjudication; the optional OpenAI
+adapter uses strict JSON Schema outputs. All accepted evidence still passes a deterministic
+page-level gate outside the model.

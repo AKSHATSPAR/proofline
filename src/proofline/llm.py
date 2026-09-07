@@ -1,10 +1,23 @@
 from __future__ import annotations
 
 import json
+import os
+from typing import Protocol
 
+from google import genai
 from openai import OpenAI
 
 from proofline.schemas import FactBatch, RelationDecision, StoredFact
+
+DEFAULT_PROVIDER = "gemini"
+DEFAULT_MODELS = {
+    "gemini": "gemini-3.8-flash",
+    "openai": "gpt-5.4-mini",
+}
+PROVIDER_KEY_ENV = {
+    "gemini": "GEMINI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
 
 EXTRACTION_INSTRUCTIONS = """You extract useful, atomic facts from financial and corporate documents.
 
@@ -39,8 +52,92 @@ the decision using only fields and evidence supplied here. Do not claim access t
 """
 
 
+class Extractor(Protocol):
+    provider: str
+    model: str
+
+    def extract(self, document_name: str, chunk_text: str) -> FactBatch: ...
+
+    def compare(self, left: StoredFact, right: StoredFact) -> RelationDecision: ...
+
+
+def provider_name(provider: str | None = None) -> str:
+    resolved = (provider or os.getenv("PROOFLINE_PROVIDER", DEFAULT_PROVIDER)).strip().lower()
+    if resolved not in DEFAULT_MODELS:
+        supported = ", ".join(sorted(DEFAULT_MODELS))
+        raise ValueError(f"Unsupported provider {resolved!r}; choose one of: {supported}")
+    return resolved
+
+
+def provider_model(provider: str | None = None, model: str | None = None) -> str:
+    resolved_provider = provider_name(provider)
+    environment_name = f"{resolved_provider.upper()}_MODEL"
+    return model or os.getenv(environment_name, DEFAULT_MODELS[resolved_provider])
+
+
+def provider_key_name(provider: str | None = None) -> str:
+    return PROVIDER_KEY_ENV[provider_name(provider)]
+
+
+def provider_is_configured(provider: str | None = None) -> bool:
+    return bool(os.getenv(provider_key_name(provider)))
+
+
+def create_extractor(provider: str | None = None, model: str | None = None) -> Extractor:
+    resolved_provider = provider_name(provider)
+    resolved_model = provider_model(resolved_provider, model)
+    key_name = provider_key_name(resolved_provider)
+    if not os.getenv(key_name):
+        raise RuntimeError(f"Set {key_name} to process new PDFs with {resolved_provider}.")
+    if resolved_provider == "gemini":
+        return GeminiExtractor(model=resolved_model)
+    return OpenAIExtractor(model=resolved_model)
+
+
+class GeminiExtractor:
+    provider = "gemini"
+
+    def __init__(self, model: str = DEFAULT_MODELS["gemini"], client=None):
+        self.model = model
+        self.client = client or genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+    def _structured(self, instructions: str, input_text: str, output_type):
+        interaction = self.client.interactions.create(
+            model=self.model,
+            input=f"{instructions}\n\n{input_text}",
+            response_format={
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": output_type.model_json_schema(),
+            },
+        )
+        return output_type.model_validate_json(interaction.output_text)
+
+    def extract(self, document_name: str, chunk_text: str) -> FactBatch:
+        return self._structured(
+            EXTRACTION_INSTRUCTIONS,
+            f"DOCUMENT: {document_name}\n\n{chunk_text}",
+            FactBatch,
+        )
+
+    def compare(self, left: StoredFact, right: StoredFact) -> RelationDecision:
+        left_payload = left.model_dump_json(
+            exclude={"id", "document_id", "chunk_index", "evidence_status", "extraction_method"}
+        )
+        right_payload = right.model_dump_json(
+            exclude={"id", "document_id", "chunk_index", "evidence_status", "extraction_method"}
+        )
+        return self._structured(
+            RELATION_INSTRUCTIONS,
+            f"LEFT FACT:\n{left_payload}\n\nRIGHT FACT:\n{right_payload}",
+            RelationDecision,
+        )
+
+
 class OpenAIExtractor:
-    def __init__(self, model: str = "gpt-5.4-mini", client: OpenAI | None = None):
+    provider = "openai"
+
+    def __init__(self, model: str = DEFAULT_MODELS["openai"], client: OpenAI | None = None):
         self.model = model
         self.client = client or OpenAI()
 
