@@ -58,6 +58,7 @@ class KnowledgeLayer:
             pdf_path.name,
             sha256,
             [(page.page_number, page.text) for page in pages],
+            source_path=str(pdf_path.resolve()),
         )
 
         chunks = build_chunks(pages)

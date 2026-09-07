@@ -1,0 +1,254 @@
+{
+  "documents": [
+    {
+      "id": "demo-economic-survey",
+      "name": "01-india-economic-survey-2024-25-excerpt.pdf",
+      "sha256": "demo-india-economic-survey-2024-25",
+      "page_count": 89,
+      "relative_source": "data/starter-datasets/india-macroeconomy/01-india-economic-survey-2024-25-excerpt.pdf",
+      "pages": [
+        {
+          "page_number": 4,
+          "text": "In this global context, India displayed steady economic growth. As per the first advance estimates of national accounts, India’s real GDP is estimated to grow by 6.4 per cent in FY25. Growth in the first half of FY25 was supported by agriculture and services."
+        }
+      ]
+    },
+    {
+      "id": "demo-rbi-annual-report",
+      "name": "02-rbi-annual-report-2024-25-excerpt.pdf",
+      "sha256": "demo-rbi-annual-report-2024-25",
+      "page_count": 100,
+      "relative_source": "data/starter-datasets/india-macroeconomy/02-rbi-annual-report-2024-25-excerpt.pdf",
+      "pages": [
+        {
+          "page_number": 8,
+          "text": "Although real gross domestic product (GDP)³ growth moderated to 6.5 per cent in 2024-25, India remained the fastest growing major economy. All references to GDP data in this Report are based on the Second Advance Estimates (SAE) of National Income 2024-25 released by the National Statistical Office on February 28, 2025, unless indicated otherwise."
+        },
+        {
+          "page_number": 17,
+          "text": "Taking into account these factors, real GDP growth for 2025-26 is projected at 6.5 per cent, with risks evenly balanced. Taking into account these factors, CPI inflation for 2025-26 is projected at 4.0 per cent, with risks evenly balanced."
+        }
+      ]
+    },
+    {
+      "id": "demo-imf-article-iv",
+      "name": "03-imf-india-2025-article-iv-excerpt.pdf",
+      "sha256": "demo-imf-india-2025-article-iv",
+      "page_count": 95,
+      "relative_source": "data/starter-datasets/india-macroeconomy/03-imf-india-2025-article-iv-excerpt.pdf",
+      "pages": [
+        {
+          "page_number": 3,
+          "text": "India’s economy has continued to perform well. Following economic growth of 6.5 percent in FY2024/25, real GDP expanded by 7.8 percent in the first quarter of FY2025/26. Despite external headwinds, growth is expected to remain robust, supported by favorable domestic conditions. Under the baseline assumption of prolonged 50 percent U.S. tariffs, real GDP is projected to grow at 6.6 percent in FY2025/26 before moderating to 6.2 percent in FY2026/27."
+        },
+        {
+          "page_number": 5,
+          "text": "Table 1. India: Selected Social and Economic Indicators, 2021/22-2026/27. Merchandise exports (in billions of U.S. dollars) 429.2 456. 1 441. 4 441. 8 416. 3 409.5"
+        }
+      ]
+    }
+  ],
+  "facts": [
+    {
+      "id": "fact-survey-fy25-growth",
+      "document_id": "demo-economic-survey",
+      "document_name": "01-india-economic-survey-2024-25-excerpt.pdf",
+      "chunk_index": 0,
+      "subject": "India",
+      "predicate": "real GDP growth",
+      "object_text": "6.4 per cent",
+      "value_type": "number",
+      "value_number": 6.4,
+      "unit": "percent",
+      "normalized_value": 6.4,
+      "normalized_unit": "percent",
+      "period_start": "2024-04-01",
+      "period_end": "2025-03-31",
+      "as_of_date": null,
+      "scope": ["market prices", "FY2024/25", "First Advance Estimate"],
+      "modality": "estimate",
+      "comparison_key": "india|real gdp growth",
+      "evidence_quote": "As per the first advance estimates of national accounts, India’s real GDP is estimated to grow by 6.4 per cent in FY25.",
+      "page_number": 4,
+      "confidence": 0.99,
+      "extraction_note": "The source explicitly labels this as the First Advance Estimate.",
+      "evidence_status": "exact",
+      "extraction_method": "curated:source-verified"
+    },
+    {
+      "id": "fact-rbi-fy25-growth",
+      "document_id": "demo-rbi-annual-report",
+      "document_name": "02-rbi-annual-report-2024-25-excerpt.pdf",
+      "chunk_index": 0,
+      "subject": "India",
+      "predicate": "real GDP growth",
+      "object_text": "6.5 per cent",
+      "value_type": "number",
+      "value_number": 6.5,
+      "unit": "percent",
+      "normalized_value": 6.5,
+      "normalized_unit": "percent",
+      "period_start": "2024-04-01",
+      "period_end": "2025-03-31",
+      "as_of_date": null,
+      "scope": ["market prices", "FY2024/25", "Second Advance Estimate"],
+      "modality": "estimate",
+      "comparison_key": "india|real gdp growth",
+      "evidence_quote": "Although real gross domestic product (GDP)³ growth moderated to 6.5 per cent in 2024-25, India remained the fastest growing major economy.",
+      "page_number": 8,
+      "confidence": 0.99,
+      "extraction_note": "Footnote 3 on the same page identifies the data vintage as the Second Advance Estimate released on February 28, 2025.",
+      "evidence_status": "exact",
+      "extraction_method": "curated:source-verified"
+    },
+    {
+      "id": "fact-imf-fy25-growth",
+      "document_id": "demo-imf-article-iv",
+      "document_name": "03-imf-india-2025-article-iv-excerpt.pdf",
+      "chunk_index": 0,
+      "subject": "India",
+      "predicate": "real GDP growth",
+      "object_text": "6.5 percent",
+      "value_type": "number",
+      "value_number": 6.5,
+      "unit": "percent",
+      "normalized_value": 6.5,
+      "normalized_unit": "percent",
+      "period_start": "2024-04-01",
+      "period_end": "2025-03-31",
+      "as_of_date": null,
+      "scope": ["market prices", "FY2024/25", "IMF 2025 Article IV"],
+      "modality": "estimate",
+      "comparison_key": "india|real gdp growth",
+      "evidence_quote": "Following economic growth of 6.5 percent in FY2024/25, real GDP expanded by 7.8 percent in the first quarter of FY2025/26.",
+      "page_number": 3,
+      "confidence": 0.99,
+      "extraction_note": null,
+      "evidence_status": "exact",
+      "extraction_method": "curated:source-verified"
+    },
+    {
+      "id": "fact-rbi-fy26-growth-forecast",
+      "document_id": "demo-rbi-annual-report",
+      "document_name": "02-rbi-annual-report-2024-25-excerpt.pdf",
+      "chunk_index": 1,
+      "subject": "India",
+      "predicate": "real GDP growth",
+      "object_text": "6.5 per cent",
+      "value_type": "number",
+      "value_number": 6.5,
+      "unit": "percent",
+      "normalized_value": 6.5,
+      "normalized_unit": "percent",
+      "period_start": "2025-04-01",
+      "period_end": "2026-03-31",
+      "as_of_date": null,
+      "scope": ["market prices", "FY2025/26", "risks evenly balanced"],
+      "modality": "forecast",
+      "comparison_key": "india|real gdp growth",
+      "evidence_quote": "Taking into account these factors, real GDP growth for 2025-26 is projected at 6.5 per cent, with risks evenly balanced.",
+      "page_number": 17,
+      "confidence": 0.99,
+      "extraction_note": "RBI forecast published in its 2024-25 Annual Report.",
+      "evidence_status": "exact",
+      "extraction_method": "curated:source-verified"
+    },
+    {
+      "id": "fact-imf-fy26-growth-forecast",
+      "document_id": "demo-imf-article-iv",
+      "document_name": "03-imf-india-2025-article-iv-excerpt.pdf",
+      "chunk_index": 0,
+      "subject": "India",
+      "predicate": "real GDP growth",
+      "object_text": "6.6 percent",
+      "value_type": "number",
+      "value_number": 6.6,
+      "unit": "percent",
+      "normalized_value": 6.6,
+      "normalized_unit": "percent",
+      "period_start": "2025-04-01",
+      "period_end": "2026-03-31",
+      "as_of_date": null,
+      "scope": ["market prices", "FY2025/26", "baseline assumes prolonged 50% U.S. tariffs"],
+      "modality": "forecast",
+      "comparison_key": "india|real gdp growth",
+      "evidence_quote": "Under the baseline assumption of prolonged 50 percent U.S. tariffs, real GDP is projected to grow at 6.6 percent in FY2025/26 before moderating to 6.2 percent in FY2026/27.",
+      "page_number": 3,
+      "confidence": 0.99,
+      "extraction_note": "IMF forecast published on November 26, 2025.",
+      "evidence_status": "exact",
+      "extraction_method": "curated:source-verified"
+    },
+    {
+      "id": "fact-rbi-fy26-inflation-forecast",
+      "document_id": "demo-rbi-annual-report",
+      "document_name": "02-rbi-annual-report-2024-25-excerpt.pdf",
+      "chunk_index": 1,
+      "subject": "India",
+      "predicate": "CPI inflation",
+      "object_text": "4.0 per cent",
+      "value_type": "number",
+      "value_number": 4.0,
+      "unit": "percent",
+      "normalized_value": 4.0,
+      "normalized_unit": "percent",
+      "period_start": "2025-04-01",
+      "period_end": "2026-03-31",
+      "as_of_date": null,
+      "scope": ["headline CPI", "FY2025/26", "risks evenly balanced"],
+      "modality": "forecast",
+      "comparison_key": "india|headline cpi inflation",
+      "evidence_quote": "Taking into account these factors, CPI inflation for 2025-26 is projected at 4.0 per cent, with risks evenly balanced.",
+      "page_number": 17,
+      "confidence": 0.99,
+      "extraction_note": null,
+      "evidence_status": "exact",
+      "extraction_method": "curated:source-verified"
+    }
+  ],
+  "relations": [
+    {
+      "id": "relation-corroborates-fy25-growth",
+      "left_fact_id": "fact-rbi-fy25-growth",
+      "right_fact_id": "fact-imf-fy25-growth",
+      "relation_type": "corroborates",
+      "confidence": 0.99,
+      "explanation": "The RBI and IMF reports give the same 6.5% real GDP growth for India in FY2024/25, using the same fiscal period and percentage unit.",
+      "decisive_context": ["same metric", "same fiscal year", "same value after spelling normalization"]
+    },
+    {
+      "id": "relation-contradicts-fy26-growth",
+      "left_fact_id": "fact-rbi-fy26-growth-forecast",
+      "right_fact_id": "fact-imf-fy26-growth-forecast",
+      "relation_type": "contradicts",
+      "confidence": 0.94,
+      "explanation": "Both are forecasts for India's real GDP growth in FY2025/26, but the RBI projects 6.5% and the IMF projects 6.6%. Different publication vintages explain why forecasts may disagree, but the values are not equivalent, so this is a likely contradiction rather than a reconciliation.",
+      "decisive_context": ["same metric and period", "6.5% versus 6.6%", "different forecast vintages"]
+    },
+    {
+      "id": "relation-reconciles-fy25-growth",
+      "left_fact_id": "fact-survey-fy25-growth",
+      "right_fact_id": "fact-rbi-fy25-growth",
+      "relation_type": "reconciles",
+      "confidence": 0.99,
+      "explanation": "The apparent 6.4% versus 6.5% conflict is a data-vintage revision: the Economic Survey cites the First Advance Estimate, while the later RBI report uses the Second Advance Estimate released on February 28, 2025.",
+      "decisive_context": ["First versus Second Advance Estimate", "later data vintage", "0.1 percentage-point revision"]
+    }
+  ],
+  "failures": [
+    {
+      "document_id": "demo-imf-article-iv",
+      "stage": "table_header_binding",
+      "page_number": 5,
+      "chunk_index": 1,
+      "message": "Skipped a plausible merchandise-exports fact because the PDF text layer split decimal values across lines, making year-to-value binding unsafe.",
+      "recoverable": true,
+      "details": {
+        "candidate": "Merchandise exports were USD 456.1 billion in FY2022/23",
+        "extracted_fragment": "Merchandise exports ... 429.2 456. 1 441. 4 441. 8 416. 3 409.5",
+        "handling": "Fail closed: keep the page and diagnostic, but do not promote the candidate into the fact layer.",
+        "next_step": "Use layout coordinates or a table parser to bind cells to column headers before retrying extraction."
+      }
+    }
+  ]
+}

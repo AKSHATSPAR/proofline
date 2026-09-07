@@ -5,11 +5,13 @@ description = "A page-grounded fact knowledge layer for financial PDFs"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "fastapi>=0.128.0",
   "openai>=2.8.0",
   "pydantic>=2.10.0",
   "pymupdf>=1.26.0",
+  "python-multipart>=0.0.20",
   "python-dotenv>=1.0.1",
-  "streamlit>=1.47.0",
+  "uvicorn[standard]>=0.36.0",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +22,7 @@ dev = [
 
 [project.scripts]
 proofline = "proofline.cli:main"
+proofline-serve = "proofline.server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -35,4 +38,3 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-

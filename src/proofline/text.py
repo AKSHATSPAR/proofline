@@ -9,10 +9,13 @@ import pymupdf
 from proofline.schemas import Page, TextChunk
 
 _WHITESPACE = re.compile(r"\s+")
+_SUPERSCRIPT_DIGITS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
 
 
 def normalize_whitespace(value: str) -> str:
-    return _WHITESPACE.sub(" ", value).strip()
+    # PDF engines disagree on whether footnote glyphs are emitted as plain or
+    # superscript digits. Treat those glyph variants as the same source text.
+    return _WHITESPACE.sub(" ", value.translate(_SUPERSCRIPT_DIGITS)).strip()
 
 
 def extract_pages(pdf_path: Path) -> list[Page]:
@@ -21,7 +24,9 @@ def extract_pages(pdf_path: Path) -> list[Page]:
     pages: list[Page] = []
     with pymupdf.open(pdf_path) as document:
         for index, pdf_page in enumerate(document):
-            text = pdf_page.get_text("text", sort=True)
+            # Preserve the PDF content stream's reading order. Coordinate sorting often
+            # interleaves rows from adjacent columns, breaking otherwise verbatim evidence.
+            text = pdf_page.get_text("text", sort=False)
             pages.append(Page(page_number=index + 1, text=text))
     return pages
 

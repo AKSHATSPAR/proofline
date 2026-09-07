@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS documents (
     name TEXT NOT NULL,
     sha256 TEXT NOT NULL UNIQUE,
     page_count INTEGER NOT NULL,
+    source_path TEXT,
     status TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -90,6 +91,11 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(documents)").fetchall()
+            }
+            if "source_path" not in columns:
+                connection.execute("ALTER TABLE documents ADD COLUMN source_path TEXT")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -109,15 +115,22 @@ class Store:
             ).fetchone()
 
     def add_document(
-        self, document_id: str, name: str, sha256: str, page_texts: list[tuple[int, str]]
+        self,
+        document_id: str,
+        name: str,
+        sha256: str,
+        page_texts: list[tuple[int, str]],
+        *,
+        page_count: int | None = None,
+        source_path: str | None = None,
     ) -> None:
         with self.connect() as connection:
             connection.execute(
                 """
-                INSERT INTO documents(id, name, sha256, page_count, status)
-                VALUES (?, ?, ?, ?, 'processing')
+                INSERT INTO documents(id, name, sha256, page_count, source_path, status)
+                VALUES (?, ?, ?, ?, ?, 'processing')
                 """,
-                (document_id, name, sha256, len(page_texts)),
+                (document_id, name, sha256, page_count or len(page_texts), source_path),
             )
             connection.executemany(
                 "INSERT INTO pages(document_id, page_number, text) VALUES (?, ?, ?)",
@@ -129,6 +142,34 @@ class Store:
             connection.execute(
                 "UPDATE documents SET status = ? WHERE id = ?", (status, document_id)
             )
+
+    def documents(self) -> list[dict]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT d.*, COUNT(f.id) AS fact_count
+                FROM documents d
+                LEFT JOIN facts f ON f.document_id = d.id
+                GROUP BY d.id
+                ORDER BY d.created_at, d.name
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def document(self, document_id: str) -> dict | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM documents WHERE id = ?", (document_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def page_text(self, document_id: str, page_number: int) -> str | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT text FROM pages WHERE document_id = ? AND page_number = ?",
+                (document_id, page_number),
+            ).fetchone()
+        return row["text"] if row else None
 
     def add_fact(self, fact: StoredFact) -> None:
         payload = fact.model_dump(mode="json")
@@ -229,6 +270,34 @@ class Store:
             )
             for row in rows
         ]
+
+    def failures(self) -> list[dict]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT x.*, d.name AS document_name
+                FROM failures x
+                LEFT JOIN documents d ON d.id = x.document_id
+                ORDER BY x.created_at DESC, x.id DESC
+                """
+            ).fetchall()
+        return [
+            {
+                **dict(row),
+                "recoverable": bool(row["recoverable"]),
+                "details": json.loads(row["details_json"]),
+            }
+            for row in rows
+        ]
+
+    def summary(self) -> dict[str, int]:
+        with self.connect() as connection:
+            return {
+                "documents": connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
+                "facts": connection.execute("SELECT COUNT(*) FROM facts").fetchone()[0],
+                "relations": connection.execute("SELECT COUNT(*) FROM relations").fetchone()[0],
+                "failures": connection.execute("SELECT COUNT(*) FROM failures").fetchone()[0],
+            }
 
     @staticmethod
     def _fact_from_row(row: sqlite3.Row) -> StoredFact:
