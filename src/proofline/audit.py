@@ -7,6 +7,7 @@ import pymupdf
 
 from proofline.store import Store
 from proofline.text import locate_evidence_rects, verify_evidence
+from proofline.validation import validate_fact_semantics
 
 
 def grounding_audit(store: Store) -> dict:
@@ -14,6 +15,7 @@ def grounding_audit(store: Store) -> dict:
 
     facts = store.facts()
     page_grounded = 0
+    fields_grounded = 0
     source_available = 0
     word_anchored = 0
     unanchored_fact_ids: list[str] = []
@@ -24,6 +26,7 @@ def grounding_audit(store: Store) -> dict:
             page_text = store.page_text(fact.document_id, fact.page_number)
             valid, _ = verify_evidence(fact.evidence_quote, page_text or "")
             page_grounded += int(valid)
+            fields_grounded += int(not validate_fact_semantics(fact))
 
             document = store.document(fact.document_id)
             source_path = (
@@ -53,6 +56,8 @@ def grounding_audit(store: Store) -> dict:
         "accepted_facts": accepted_facts,
         "page_grounded": page_grounded,
         "page_grounding_rate": page_grounded / accepted_facts if accepted_facts else 1.0,
+        "fields_grounded": fields_grounded,
+        "field_grounding_rate": fields_grounded / accepted_facts if accepted_facts else 1.0,
         "source_available": source_available,
         "word_anchored": word_anchored,
         "word_anchor_rate": word_anchored / source_available if source_available else None,

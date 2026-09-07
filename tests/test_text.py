@@ -1,7 +1,7 @@
 import pymupdf
 
 from proofline.schemas import Page
-from proofline.text import build_chunks, locate_evidence_rects, verify_evidence
+from proofline.text import build_chunks, evidence_context, locate_evidence_rects, verify_evidence
 
 
 def test_chunks_keep_page_labels_and_bounds() -> None:
@@ -48,3 +48,32 @@ def test_word_level_anchor_handles_normalized_footnote_glyphs() -> None:
     assert all(rect.width > 0 and rect.height > 0 for rect in rects)
     assert locate_evidence_rects(page, "This quote is not present on the page.") == []
     document.close()
+
+
+def test_word_level_anchor_can_omit_a_trailing_footnote_marker() -> None:
+    document = pymupdf.open()
+    page = document.new_page()
+    page.insert_text(
+        (72, 72),
+        "Although real gross domestic product (GDP)3 growth moderated to 6.5 per cent.",
+    )
+
+    rects = locate_evidence_rects(
+        page,
+        "Although real gross domestic product (GDP) growth moderated to 6.5 per cent.",
+    )
+
+    assert rects
+    assert locate_evidence_rects(page, "growth moderated to 6 per cent") == []
+    document.close()
+
+
+def test_evidence_context_returns_a_bounded_window_around_the_quote() -> None:
+    page = f"{'before ' * 100}Revenue was INR 8,142 crore in FY24.{' after' * 100}"
+
+    context = evidence_context(page, "Revenue was INR 8,142 crore in FY24.", radius=30)
+
+    assert context.startswith("... ")
+    assert context.endswith(" ...")
+    assert "Revenue was INR 8,142 crore in FY24." in context
+    assert len(context) < len(page)

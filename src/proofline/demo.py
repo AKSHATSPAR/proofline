@@ -6,6 +6,7 @@ from pathlib import Path
 from proofline.schemas import StoredFact, StoredRelation
 from proofline.store import Store
 from proofline.text import verify_evidence
+from proofline.validation import validate_fact_semantics
 
 DEMO_PATH = Path(__file__).parent / "examples" / "india_macroeconomy_demo.json"
 
@@ -44,6 +45,10 @@ def load_demo(store: Store, path: Path = DEMO_PATH) -> bool:
         )
         if not valid or status != "exact":
             raise ValueError(f"Demo fact {fact.id} is not anchored to its page text")
+        semantic_issues = validate_fact_semantics(fact)
+        if semantic_issues:
+            codes = ", ".join(issue.code for issue in semantic_issues)
+            raise ValueError(f"Demo fact {fact.id} failed semantic validation: {codes}")
         store.add_fact(fact)
 
     for relation_payload in payload["relations"]:

@@ -41,6 +41,12 @@ function shortName(name) {
   return String(name).replace(/^\d+-/, "").replace(/-excerpt\.pdf$/i, "").replace(/\.pdf$/i, "").replaceAll("-", " ");
 }
 
+function confidenceLabel(value) {
+  if (value >= 0.85) return "High";
+  if (value >= 0.65) return "Medium";
+  return "Low";
+}
+
 function relationTitle(relation) {
   const labels = {
     corroborates: "Separate publications converge",
@@ -78,7 +84,7 @@ function renderRelationships() {
           <p>${esc(relation.explanation)}</p>
           <div class="context-chips">${relation.decisive_context.map((item) => `<span class="chip">${esc(item)}</span>`).join("")}</div>
         </div>
-        <div class="confidence"><strong>${Math.round(relation.confidence * 100)}%</strong><span>confidence</span></div>
+        <div class="confidence"><strong>${confidenceLabel(relation.confidence)}</strong><span>review signal</span></div>
       </div>
       <div class="evidence-pair">
         ${evidenceCard(relation.left, "Source A")}
@@ -98,7 +104,7 @@ function renderFacts() {
       <td><strong>${esc(fact.object_text)}</strong><span class="td-sub">${esc(fact.normalized_unit || fact.unit || fact.value_type)}</span></td>
       <td>${esc(periodLabel(fact))}<span class="td-sub">${esc(fact.modality)}</span></td>
       <td>${esc(shortName(fact.document_name))}<span class="td-sub">PDF page ${fact.page_number}</span></td>
-      <td>${Math.round(fact.confidence * 100)}%<div class="confidence-bar"><i style="width:${Math.round(fact.confidence * 100)}%"></i></div></td>
+      <td>${confidenceLabel(fact.confidence)}<div class="confidence-bar"><i style="width:${Math.round(fact.confidence * 100)}%"></i></div></td>
     </tr>`).join("") || `<tr><td colspan="5" class="empty-state">No facts match your search.</td></tr>`;
   byId("factsTable").querySelectorAll("[data-evidence]").forEach((button) => button.addEventListener("click", () => openEvidence(button.dataset.evidence)));
 }
@@ -140,7 +146,7 @@ function openEvidence(factId) {
   const fact = state.facts.find((item) => item.id === factId);
   if (!fact) return;
   byId("evidenceTitle").textContent = `${fact.subject} · ${fact.predicate}`;
-  byId("evidenceMeta").innerHTML = [fact.document_name, `PDF page ${fact.page_number}`, periodLabel(fact), `${Math.round(fact.confidence * 100)}% confidence`].map((item) => `<span>${esc(item)}</span>`).join("");
+  byId("evidenceMeta").innerHTML = [fact.document_name, `PDF page ${fact.page_number}`, periodLabel(fact), `${confidenceLabel(fact.confidence)} extraction signal`].map((item) => `<span>${esc(item)}</span>`).join("");
   byId("evidenceQuote").textContent = `“${fact.evidence_quote}”`;
   byId("evidenceContext").innerHTML = `<strong>Context:</strong> ${esc(fact.extraction_note || fact.scope.join(" · "))}<br /><strong>Comparison key:</strong> ${esc(fact.comparison_key)} · evidence match: ${esc(fact.evidence_status)}`;
   byId("pdfFrameWrap").innerHTML = fact.source_available
@@ -158,6 +164,7 @@ async function refresh() {
     ]);
     Object.assign(state, { config, summary, documents, facts, relations, failures, audit });
     renderSummary(); renderRelationships(); renderFacts(); renderDocuments(); renderFailures();
+    byId("fieldCoverage").textContent = `${audit.fields_grounded} / ${audit.accepted_facts} supported`;
     byId("wordAnchorCoverage").textContent = audit.source_available
       ? `${audit.word_anchored} / ${audit.source_available} located`
       : "Sources unavailable";
@@ -199,7 +206,11 @@ async function pollJob(jobId) {
     byId("jobPercent").textContent = `${percent}%`;
     byId("jobBar").value = percent;
     if (job.status === "complete") {
-      showToast(`Processing complete · ${job.relations_added || 0} relationships added`);
+      const issues = (job.results || []).filter((result) => result.status !== "ready");
+      const resultNote = issues.length
+        ? `${issues.length} document${issues.length === 1 ? "" : "s"} need review`
+        : `${job.relations_added || 0} relationships added`;
+      showToast(`Processing complete · ${resultNote}`);
       await refresh();
       setTimeout(() => byId("uploadDialog").close(), 700);
       return;

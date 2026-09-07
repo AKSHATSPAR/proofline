@@ -72,10 +72,12 @@ PDF upload
    -> page-labelled, bounded chunks
    -> structured fact discovery
    -> verbatim evidence gate
+   -> deterministic field validation
    -> word-level source anchoring
    -> SQLite fact register
-   -> semantic candidate blocking
-   -> relationship adjudication + explanation
+   -> indexed semantic candidate retrieval
+   -> context-aware relationship adjudication
+   -> deterministic relationship guardrails
    -> API and review UI
 ```
 
@@ -88,8 +90,9 @@ database migration.
 
 My main rule is that a fact should not enter the knowledge layer unless its evidence can be found on
 the claimed PDF page. The model must return a verbatim quote and a one-based page number. Proofline
-normalizes whitespace and checks the quote against the text from that page. A failed match goes to
-Diagnostics instead of becoming a fact.
+normalizes whitespace and checks the quote against the text from that page. It then checks that the
+stored number, unit, period, date, modality, and any unit conversion agree with the quote. A failed
+check goes to Diagnostics with the rejected candidate and field-level reasons.
 
 For facts that pass, Proofline finds the quote's coordinates and highlights the words in the source
 page. A small word-sequence fallback handles PDF quirks such as superscript footnote numbers. This
@@ -97,15 +100,21 @@ may miss a few valid facts, but I prefer a visible omission to a claim that cann
 
 ### Cross-document comparison
 
-Comparing every fact with every other fact quickly becomes wasteful. To avoid that, the extractor
-creates a comparison key that leaves out formatting, period, and unit differences. Proofline uses
-that key, along with the subject and predicate, to find plausible cross-document pairs. The
-comparison step then chooses one of four results:
+Comparing every fact with every other fact quickly becomes wasteful. Proofline builds an inverted
+index over normalized metric terms and retrieves only cross-document facts with compatible entity
+and metric signatures. A small alias set handles common variants such as turnover versus revenue
+and profit after tax versus net profit. This avoids a full all-pairs scan while keeping the required
+demo matches. The comparison step receives each fact plus a bounded window from its source page,
+then chooses one of four results:
 
 - `corroborates`: materially the same claim after safe normalization;
 - `contradicts`: the same subject, metric, period, scope, and modality with incompatible values;
 - `reconciles`: a surface conflict explained by time, scope, unit, definition, or modality; or
 - `unrelated`: not stored as a relationship.
+
+Before a relationship is stored, deterministic guardrails reject impossible numeric labels. For
+example, two equal values cannot be called a contradiction, and different normalized values cannot
+be called corroboration.
 
 ### Required cases in the included demo
 
@@ -140,8 +149,9 @@ new documents add relationships without rebuilding the existing layer.
   useful inspection screen without setting up a separate frontend project.
 - SQLite is enough for this prototype. A graph database would add setup work, but it would not make
   fact discovery or source checking more reliable.
-- Evidence matching is deterministic. Relationship labels still use a model, so every label carries
-  a confidence score and a short explanation.
+- Evidence and structured field matching are deterministic. Relationship labels still use a model,
+  so every label carries a qualitative review signal and a short explanation. Raw confidence is
+  retained in the API for sorting, not presented as a calibrated probability.
 - Highlights are created from the original PDF when the reviewer opens a fact. They are not citation
   coordinates invented by the model.
 - I use the PDF's actual page index because printed page numbers can jump inside curated excerpts.
@@ -149,8 +159,10 @@ new documents add relationships without rebuilding the existing layer.
   candidate filtering limits the number of fact pairs sent for comparison.
 - Gemini is the default because its free tier makes the project easier to try. The OpenAI adapter is
   there for people who already have API billing.
-- Temporary provider errors are retried with bounded backoff. A document can be marked `partial` or
-  `failed`, and it can be submitted again after the provider recovers.
+- Temporary provider errors are retried with bounded backoff, including the error type returned by
+  the provider's newer interactions endpoint. A document can be marked `partial`, `empty`,
+  `rejected`, or `failed`, and it can be submitted again after the provider recovers. The UI and CLI
+  surface that status instead of presenting zero extracted facts as a successful run.
 
 ## Limitations and Next Steps
 
@@ -158,12 +170,12 @@ new documents add relationships without rebuilding the existing layer.
   can lose the connection between a table header and its value. The demo keeps one such failure in
   Diagnostics instead of guessing.
 - Scanned PDFs need an OCR step before Proofline can read them.
-- Candidate filtering currently combines model-created keys with lexical similarity. For a much
-  larger collection, I would test embeddings and an approximate nearest-neighbor index.
+- The metric alias set is intentionally small. A larger collection would need a measured vocabulary
+  expansion or a hybrid semantic index, with recall checked against labelled cross-document pairs.
 - Jobs run in one background process. A production version would need a durable queue, cancellation,
   retries, and saved progress for each chunk.
-- The model suggests normalized dates and units. A larger labelled test set would help check those
-  conversions independently.
+- The deterministic validator checks common numeric scales, currencies, dates, fiscal years, and
+  fiscal quarters. Unusual accounting units and non-standard periods still need broader test data.
 - Source PDFs are stored on the local machine. A real multi-tenant service would need encrypted
   object storage, retention settings, tenant isolation, and deletion workflows.
 

@@ -10,7 +10,7 @@ unseen starter document through the same code used by the upload screen.
 - Input: the complete 27-page Delhivery Q4 FY24 earnings presentation from the starter dataset
 - Processing: two page-labelled text chunks through the same general ingestion path used by the UI
 
-## Result
+## Baseline result
 
 - 24 unique facts accepted into SQLite
 - 1 candidate rejected because its quote could not be anchored verbatim to the claimed PDF page
@@ -34,14 +34,34 @@ The rejected candidate came from a multi-column working-capital table. Text extr
 the row together, so Proofline could not find the proposed quote on the page. It left the candidate
 in Diagnostics instead of accepting it.
 
+## Stricter field-grounding rerun
+
+On 2026-09-08 I added a second gate that checks whether structured fields are supported by the
+accepted quote. The first completed rerun produced:
+
+- 7 facts accepted;
+- 17 candidates quarantined with field-level reasons; and
+- 0 unsupported candidates promoted to facts.
+
+The retained facts cover FY24 and Q4 FY24 revenue, shipments, reported EBITDA, and adjusted EBITDA.
+Most quarantined candidates copied a valid sentence but attached a date, period, or unit that was
+only visible in a distant table header. That result is lower recall than the baseline, but it is a
+more honest boundary for page-text extraction. The application now shows both quote grounding and
+structured field coverage in its audit panel.
+
+Later reruns hit the provider's free-tier quota for both chunks. After the complete bounded retry
+budget, Proofline stored the errors and marked the document `failed`. Those quota-blocked attempts
+are not counted as extraction evaluations.
+
 ## What broke and what I changed
 
 An earlier attempt with `gemini-3.8-flash` hit one temporary capacity error and one quota error. The
-errors were visible, but retrying the run was clumsy. I made four changes:
+errors were visible, but retrying the run was clumsy. I made these changes:
 
 - defaults to the stable `gemini-3.7-flash` free model;
 - retries 429 and transient 5xx responses with bounded backoff;
-- marks all-failed and partially processed documents as `failed` or `partial`; and
+- marks all-failed and partially processed documents as `failed` or `partial`;
+- marks a successful call with no candidates as `empty`, with a reviewable diagnostic; and
 - allows those documents to be submitted again instead of treating them as complete.
 
 The run found one smaller bug too. Duplicate candidates in a response made the displayed insert
@@ -51,5 +71,6 @@ actually stored.
 ## One number I would not trust yet
 
 The model gave every accepted candidate a confidence of `1.0`. The evidence still passed an
-independent check, but that confidence is clearly not a calibrated probability. I would need a
-labelled extraction set before presenting model confidence as anything more than a ranking signal.
+independent check, but that confidence is clearly not a calibrated probability. The interface now
+uses high, medium, and low review signals instead of percentages. A labelled extraction set is still
+needed before treating the underlying value as calibrated.

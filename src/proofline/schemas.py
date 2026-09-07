@@ -39,11 +39,13 @@ class FactCandidate(StrictModel):
     JSON schema strict while allowing facts that are not numeric or time-bound.
     """
 
-    subject: str = Field(description="Entity the claim is about")
-    predicate: str = Field(description="Short relation or metric name")
-    object_text: str = Field(description="Value or object exactly as understood")
+    subject: str = Field(min_length=1, description="Entity the claim is about")
+    predicate: str = Field(min_length=1, description="Short relation or metric name")
+    object_text: str = Field(min_length=1, description="Value or object exactly as understood")
     value_type: ValueType
-    value_number: float | None
+    value_number: float | None = Field(
+        description="Numeric part as written in object_text; keep thousand/million/crore in unit"
+    )
     unit: str | None = Field(description="Unit written in the source")
     normalized_value: float | None = Field(
         description="Value converted to normalized_unit, without rounding invention"
@@ -55,7 +57,8 @@ class FactCandidate(StrictModel):
     scope: list[str] = Field(description="Material qualifiers such as consolidated or India")
     modality: Modality
     comparison_key: str = Field(
-        description="Stable semantic key independent of formatting, unit, period, and scope"
+        min_length=3,
+        description="Stable semantic key independent of formatting, unit, period, and scope",
     )
     evidence_quote: str = Field(
         min_length=12,
@@ -74,9 +77,10 @@ class RelationDecision(StrictModel):
     relation_type: RelationType
     confidence: float = Field(ge=0, le=1)
     explanation: str = Field(
-        description="Concise reviewer-facing reasoning that cites value, time, scope, or unit"
+        min_length=20,
+        description="Concise reviewer-facing reasoning that cites value, time, scope, or unit",
     )
-    decisive_context: list[str]
+    decisive_context: list[str] = Field(min_length=1)
 
 
 class Page(StrictModel):

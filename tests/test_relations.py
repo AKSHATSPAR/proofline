@@ -44,3 +44,25 @@ def test_candidate_pairs_are_cross_document_and_semantically_blocked() -> None:
     assert ("a", "b") in pairs
     assert ("a", "d") not in pairs
     assert ("a", "c") not in pairs
+
+
+def test_candidate_pairs_normalize_common_financial_paraphrases() -> None:
+    facts = [
+        fact("a", "doc-1", "delhivery|turnover", "turnover"),
+        fact("b", "doc-2", "delhivery limited|revenue", "revenue from operations"),
+        fact("c", "doc-3", "delhivery|employee headcount", "number of employees"),
+    ]
+
+    pairs = candidate_pairs(facts)
+
+    assert ("a", "b") in pairs
+    assert ("a", "c") not in pairs
+
+
+def test_candidate_pairs_normalize_entity_suffixes_and_metric_phrases() -> None:
+    left = fact("a", "doc-1", "india|gross domestic product growth", "economic growth")
+    right = fact("b", "doc-2", "india limited|gdp growth", "real GDP growth")
+    left = left.model_copy(update={"subject": "India"})
+    right = right.model_copy(update={"subject": "India Limited"})
+
+    assert candidate_pairs([left, right]) == [("a", "b")]

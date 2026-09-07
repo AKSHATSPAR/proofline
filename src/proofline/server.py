@@ -87,10 +87,16 @@ class JobManager:
                 total=0,
             )
             relations_added = layer.discover_relations(max_pairs=80)
+            issue_count = sum(result.status != "ready" for result in results)
+            message = (
+                f"Finished with issues in {issue_count} of {len(results)} documents"
+                if issue_count
+                else "Knowledge layer updated"
+            )
             self._update(
                 job_id,
                 status="complete",
-                message="Knowledge layer updated",
+                message=message,
                 results=results,
                 relations_added=relations_added,
             )

@@ -45,7 +45,18 @@ def main() -> None:
             ),
         )
         state = "already present" if result.skipped else f"{result.facts_added} facts"
-        print(f"{result.name}: {state}; {result.facts_rejected} rejected")
+        details = [
+            f"status={result.status}",
+            state,
+            f"{result.facts_rejected} rejected",
+        ]
+        if result.chunks_failed:
+            details.append(f"{result.chunks_failed} chunks failed")
+        if result.chunks_empty:
+            details.append(f"{result.chunks_empty} chunks returned no candidates")
+        if result.pages_unreadable:
+            details.append(f"{result.pages_unreadable} pages need OCR")
+        print(f"{result.name}: {'; '.join(details)}")
     if not args.skip_relations:
         print(f"Added {layer.discover_relations()} cross-document relations")
 

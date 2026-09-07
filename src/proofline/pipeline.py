@@ -9,7 +9,14 @@ from proofline.llm import Extractor
 from proofline.relations import candidate_pairs
 from proofline.schemas import RelationType, StoredFact, StoredRelation
 from proofline.store import Store
-from proofline.text import build_chunks, extract_pages, verify_evidence
+from proofline.text import (
+    build_chunks,
+    evidence_context,
+    extract_pages,
+    normalize_whitespace,
+    verify_evidence,
+)
+from proofline.validation import validate_fact_semantics, validate_relation_semantics
 
 ProgressCallback = Callable[[str, int, int], None]
 
@@ -23,6 +30,8 @@ class IngestResult:
     facts_rejected: int
     status: str = "ready"
     chunks_failed: int = 0
+    chunks_empty: int = 0
+    pages_unreadable: int = 0
     skipped: bool = False
 
 
@@ -66,10 +75,24 @@ class KnowledgeLayer:
             source_path=str(pdf_path.resolve()),
         )
 
+        unreadable_pages = [page for page in pages if not normalize_whitespace(page.text)]
+        for page in unreadable_pages:
+            self.store.add_failure(
+                document_id,
+                "page_extraction",
+                "No searchable text was found on this page",
+                page_number=page.page_number,
+                details={
+                    "handling": "The page was skipped instead of being treated as an empty source.",
+                    "next_step": "Run this page through OCR before extracting facts.",
+                },
+            )
+
         chunks = build_chunks(pages)
         facts_added = 0
         facts_rejected = 0
         chunks_failed = 0
+        chunks_empty = 0
         try:
             for position, chunk in enumerate(chunks, start=1):
                 if progress:
@@ -85,6 +108,21 @@ class KnowledgeLayer:
                         str(error),
                         chunk_index=chunk.index,
                         details={"pages": chunk.pages},
+                    )
+                    continue
+
+                if not batch.facts:
+                    chunks_empty += 1
+                    self.store.add_failure(
+                        document_id,
+                        "empty_extraction",
+                        "No candidate facts were returned for this source chunk",
+                        chunk_index=chunk.index,
+                        details={
+                            "pages": chunk.pages,
+                            "handling": "The empty result is visible for review instead of being treated as successful extraction.",
+                            "next_step": "Review the source pages or retry with adjusted extraction instructions.",
+                        },
                     )
                     continue
 
@@ -118,6 +156,24 @@ class KnowledgeLayer:
                         )
                         continue
 
+                    semantic_issues = validate_fact_semantics(candidate)
+                    if semantic_issues:
+                        facts_rejected += 1
+                        self.store.add_failure(
+                            document_id,
+                            "fact_validation",
+                            "Structured fields were not supported by the evidence quote",
+                            page_number=candidate.page_number,
+                            chunk_index=chunk.index,
+                            details={
+                                "comparison_key": candidate.comparison_key,
+                                "quote": candidate.evidence_quote,
+                                "candidate": candidate.model_dump(mode="json"),
+                                "issues": [issue.payload() for issue in semantic_issues],
+                            },
+                        )
+                        continue
+
                     fact_id = hashlib.sha256(
                         (
                             f"{document_id}|{candidate.page_number}|"
@@ -139,9 +195,19 @@ class KnowledgeLayer:
             self.store.set_document_status(document_id, "failed")
             raise
 
-        if chunks_failed == len(chunks):
+        if not chunks or chunks_failed == len(chunks):
             status = "failed"
-        elif chunks_failed:
+        elif chunks_empty == len(chunks):
+            status = "empty"
+        elif (
+            facts_added == 0
+            and facts_rejected
+            and not chunks_failed
+            and not chunks_empty
+            and not unreadable_pages
+        ):
+            status = "rejected"
+        elif chunks_failed or chunks_empty or unreadable_pages:
             status = "partial"
         else:
             status = "ready"
@@ -154,6 +220,8 @@ class KnowledgeLayer:
             facts_rejected=facts_rejected,
             status=status,
             chunks_failed=chunks_failed,
+            chunks_empty=chunks_empty,
+            pages_unreadable=len(unreadable_pages),
         )
 
     def discover_relations(self, max_pairs: int = 200) -> int:
@@ -170,8 +238,21 @@ class KnowledgeLayer:
                 continue
             left = facts_by_id[left_id]
             right = facts_by_id[right_id]
+            left_context = evidence_context(
+                self.store.page_text(left.document_id, left.page_number) or "",
+                left.evidence_quote,
+            )
+            right_context = evidence_context(
+                self.store.page_text(right.document_id, right.page_number) or "",
+                right.evidence_quote,
+            )
             try:
-                decision = self.extractor.compare(left, right)
+                decision = self.extractor.compare(
+                    left,
+                    right,
+                    left_context=left_context,
+                    right_context=right_context,
+                )
             # Candidate pairs are independent; preserve the rest when one call fails.
             except Exception as error:  # noqa: BLE001
                 self.store.add_failure(
@@ -179,6 +260,20 @@ class KnowledgeLayer:
                     "relation_classification",
                     str(error),
                     details={"left_fact_id": left_id, "right_fact_id": right_id},
+                )
+                continue
+            semantic_issues = validate_relation_semantics(left, right, decision)
+            if semantic_issues:
+                self.store.add_failure(
+                    None,
+                    "relation_validation",
+                    "The proposed relationship conflicted with deterministic fact fields",
+                    details={
+                        "left_fact_id": left_id,
+                        "right_fact_id": right_id,
+                        "proposed_relation": decision.relation_type.value,
+                        "issues": [issue.payload() for issue in semantic_issues],
+                    },
                 )
                 continue
             if decision.relation_type == RelationType.UNRELATED:

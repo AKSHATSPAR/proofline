@@ -72,6 +72,8 @@ def build_chunks(
 
     for page in pages:
         for fragment in _split_long_page(page, max_chars, overlap_chars):
+            if not fragment.strip():
+                continue
             labelled = f"[[PDF_PAGE {page.page_number}]]\n{fragment}"
             if pending and pending_size + len(labelled) > max_chars:
                 flush()
@@ -96,6 +98,32 @@ def verify_evidence(quote: str, page_text: str) -> tuple[bool, str]:
     return False, "not_found"
 
 
+def evidence_context(page_text: str, quote: str, radius: int = 500) -> str:
+    """Return a bounded source window around a verified quote."""
+
+    normalized_page = normalize_whitespace(page_text)
+    normalized_quote = normalize_whitespace(quote)
+    quote_start = normalized_page.find(normalized_quote)
+    if quote_start < 0:
+        return ""
+
+    start = max(0, quote_start - radius)
+    end = min(len(normalized_page), quote_start + len(normalized_quote) + radius)
+    if start:
+        next_space = normalized_page.find(" ", start)
+        start = next_space + 1 if next_space >= 0 else start
+    if end < len(normalized_page):
+        previous_space = normalized_page.rfind(" ", start, end)
+        end = previous_space if previous_space >= 0 else end
+
+    context = normalized_page[start:end]
+    if start:
+        context = f"... {context}"
+    if end < len(normalized_page):
+        context = f"{context} ..."
+    return context
+
+
 def locate_evidence_rects(page: pymupdf.Page, quote: str) -> list[pymupdf.Rect]:
     """Locate a verified quote on its PDF page for visual, word-level provenance.
 
@@ -113,11 +141,27 @@ def locate_evidence_rects(page: pymupdf.Page, quote: str) -> list[pymupdf.Rect]:
 
     words = page.get_text("words", sort=False)
     word_tokens = [normalize_whitespace(word[4]).casefold() for word in words]
+
+    def token_matches(source: str, expected: str) -> bool:
+        if source == expected:
+            return True
+        # Some PDFs expose a superscript footnote as an ordinary trailing digit.
+        # Only ignore it when the quoted token itself does not end in a digit, so
+        # values and years can never be shortened into a visual match.
+        return bool(
+            expected and not expected[-1].isdigit() and source.rstrip("0123456789") == expected
+        )
+
     match_start = next(
         (
             index
             for index in range(len(word_tokens) - len(quote_tokens) + 1)
-            if word_tokens[index : index + len(quote_tokens)] == quote_tokens
+            if all(
+                token_matches(source, expected)
+                for source, expected in zip(
+                    word_tokens[index : index + len(quote_tokens)], quote_tokens, strict=True
+                )
+            )
         ),
         None,
     )

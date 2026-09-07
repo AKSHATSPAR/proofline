@@ -32,6 +32,7 @@ def test_demo_exposes_all_required_cases(tmp_path: Path) -> None:
     assert failures[0]["stage"] == "table_header_binding"
     assert audit["accepted_facts"] == 6
     assert audit["page_grounded"] == 6
+    assert audit["fields_grounded"] == 6
     assert audit["word_anchored"] == audit["source_available"]
     assert audit["unanchored_fact_ids"] == []
 

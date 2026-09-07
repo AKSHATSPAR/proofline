@@ -160,6 +160,8 @@ h2 { font-size: clamp(26px, 3vw, 34px); line-height: 1.05; }
 .pipeline-step b { color: #91a099; font-size: 11px; }
 .pipeline-step em { font-style: normal; color: #34734f; font-size: 11px; font-weight: 800; }
 .quality-line { border-radius: 10px; padding: 11px 13px; background: #edf6d9; display: flex; justify-content: space-between; font-size: 12px; margin-top: 8px; }
+.quality-line.field-quality { background: #e7eff9; }
+.quality-line.field-quality strong { color: #3d659c; }
 .quality-line.anchor-quality { background: #fff1df; }
 .quality-line.anchor-quality strong { color: #985314; }
 
