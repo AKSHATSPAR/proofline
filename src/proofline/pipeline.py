@@ -21,6 +21,8 @@ class IngestResult:
     page_count: int
     facts_added: int
     facts_rejected: int
+    status: str = "ready"
+    chunks_failed: int = 0
     skipped: bool = False
 
 
@@ -40,15 +42,18 @@ class KnowledgeLayer:
     def ingest_pdf(self, pdf_path: Path, progress: ProgressCallback | None = None) -> IngestResult:
         sha256 = self._hash_file(pdf_path)
         existing = self.store.document_by_hash(sha256)
-        if existing is not None:
+        if existing is not None and existing["status"] == "ready":
             return IngestResult(
                 document_id=existing["id"],
                 name=existing["name"],
                 page_count=existing["page_count"],
                 facts_added=0,
                 facts_rejected=0,
+                status="ready",
                 skipped=True,
             )
+        if existing is not None:
+            self.store.delete_document(existing["id"])
 
         document_id = sha256[:16]
         pages = extract_pages(pdf_path)
@@ -64,6 +69,7 @@ class KnowledgeLayer:
         chunks = build_chunks(pages)
         facts_added = 0
         facts_rejected = 0
+        chunks_failed = 0
         try:
             for position, chunk in enumerate(chunks, start=1):
                 if progress:
@@ -72,6 +78,7 @@ class KnowledgeLayer:
                     batch = self.extractor.extract(pdf_path.name, chunk.text)
                 # A bad API response must not discard facts accepted from earlier chunks.
                 except Exception as error:  # noqa: BLE001
+                    chunks_failed += 1
                     self.store.add_failure(
                         document_id,
                         "extraction",
@@ -126,19 +133,27 @@ class KnowledgeLayer:
                         evidence_status=evidence_status,
                         extraction_method=f"{self.extractor.provider}:{self.extractor.model}",
                     )
-                    self.store.add_fact(fact)
-                    facts_added += 1
+                    if self.store.add_fact(fact):
+                        facts_added += 1
         except Exception:
             self.store.set_document_status(document_id, "failed")
             raise
 
-        self.store.set_document_status(document_id, "ready")
+        if chunks_failed == len(chunks):
+            status = "failed"
+        elif chunks_failed:
+            status = "partial"
+        else:
+            status = "ready"
+        self.store.set_document_status(document_id, status)
         return IngestResult(
             document_id=document_id,
             name=pdf_path.name,
             page_count=len(pages),
             facts_added=facts_added,
             facts_rejected=facts_rejected,
+            status=status,
+            chunks_failed=chunks_failed,
         )
 
     def discover_relations(self, max_pairs: int = 200) -> int:

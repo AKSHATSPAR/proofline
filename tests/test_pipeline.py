@@ -38,6 +38,11 @@ class FakeExtractor:
         )
 
 
+class FailingExtractor(FakeExtractor):
+    def extract(self, document_name: str, chunk_text: str) -> FactBatch:
+        raise RuntimeError("temporary provider failure")
+
+
 def make_pdf(path: Path) -> None:
     document = pymupdf.open()
     page = document.new_page()
@@ -66,3 +71,19 @@ def test_ingestion_is_grounded_and_incremental(tmp_path: Path) -> None:
     assert facts[0].evidence_status == "exact"
     assert facts[0].normalized_value == 81_420
     assert facts[0].extraction_method == "fake:fake"
+
+
+def test_fully_failed_document_can_be_retried(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "annual-report.pdf"
+    make_pdf(pdf_path)
+    store = Store(tmp_path / "proofline.db")
+
+    failed = KnowledgeLayer(store, FailingExtractor()).ingest_pdf(pdf_path)
+    retried = KnowledgeLayer(store, FakeExtractor()).ingest_pdf(pdf_path)
+
+    assert failed.status == "failed"
+    assert failed.chunks_failed == 1
+    assert retried.status == "ready"
+    assert retried.skipped is False
+    assert retried.facts_added == 1
+    assert store.summary()["failures"] == 0

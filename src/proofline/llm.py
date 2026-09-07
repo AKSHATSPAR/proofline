@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
 from typing import Protocol
 
 from google import genai
+from google.genai.errors import APIError
 from openai import OpenAI
 
 from proofline.schemas import FactBatch, RelationDecision, StoredFact
 
 DEFAULT_PROVIDER = "gemini"
 DEFAULT_MODELS = {
-    "gemini": "gemini-3.8-flash",
+    "gemini": "gemini-3.7-flash",
     "openai": "gpt-5.4-mini",
 }
 PROVIDER_KEY_ENV = {
@@ -102,16 +105,28 @@ class GeminiExtractor:
         self.client = client or genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
     def _structured(self, instructions: str, input_text: str, output_type):
-        interaction = self.client.interactions.create(
-            model=self.model,
-            input=f"{instructions}\n\n{input_text}",
-            response_format={
-                "type": "text",
-                "mime_type": "application/json",
-                "schema": output_type.model_json_schema(),
-            },
-        )
-        return output_type.model_validate_json(interaction.output_text)
+        for attempt in range(3):
+            try:
+                interaction = self.client.interactions.create(
+                    model=self.model,
+                    input=f"{instructions}\n\n{input_text}",
+                    response_format={
+                        "type": "text",
+                        "mime_type": "application/json",
+                        "schema": output_type.model_json_schema(),
+                    },
+                )
+                return output_type.model_validate_json(interaction.output_text)
+            except APIError as error:
+                if error.code not in {429, 500, 502, 503, 504} or attempt == 2:
+                    raise
+                retry_match = re.search(r"retry in ([0-9.]+)s", error.message or "", re.IGNORECASE)
+                retry_seconds = (
+                    float(retry_match.group(1)) + 0.5 if retry_match else 2 ** (attempt + 1)
+                )
+                time.sleep(min(retry_seconds, 30))
+
+        raise RuntimeError("Gemini request exhausted its retry budget")
 
     def extract(self, document_name: str, chunk_text: str) -> FactBatch:
         return self._structured(

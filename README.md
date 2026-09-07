@@ -31,7 +31,7 @@ uv run proofline-serve
 ```
 
 Keep the Google AI Studio project on the **Free Tier** and do not select **Set up billing**. The
-default model is `gemini-3.8-flash`. Google states that free-tier prompts and responses may be used
+default model is `gemini-3.7-flash`. Google states that free-tier prompts and responses may be used
 to improve its products, so use the included public starter documents—not confidential material.
 
 To use OpenAI instead, set `PROOFLINE_PROVIDER=openai` and `OPENAI_API_KEY` in `.env`. Provider keys
@@ -51,6 +51,9 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 ```
+
+The latest real-model evaluation is documented in
+[`docs/live-evaluation.md`](docs/live-evaluation.md).
 
 ## Video Demo
 
@@ -135,6 +138,8 @@ Relationships are appended for new cross-document candidates instead of rebuildi
   work and pairwise cost.
 - The model adapter is provider-independent. Gemini's no-payment free tier is the default for easy
   evaluation, while an OpenAI adapter is retained for teams that already have API billing.
+- Retryable provider errors are retried with bounded backoff. Fully failed or partially processed
+  documents are marked accordingly and can be submitted again instead of being permanently skipped.
 
 ## Limitations and Next Steps
 

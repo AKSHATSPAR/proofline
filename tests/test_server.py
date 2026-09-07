@@ -33,8 +33,8 @@ def test_demo_exposes_all_required_cases(tmp_path: Path) -> None:
 
 def test_page_evidence_and_no_key_upload_guard(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("PROOFLINE_PROVIDER", "gemini")
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     client = TestClient(create_app(tmp_path / "api.db"))
 
     page = client.get("/api/documents/demo-economic-survey/pages/4")

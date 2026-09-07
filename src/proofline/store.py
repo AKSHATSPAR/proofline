@@ -114,6 +114,10 @@ class Store:
                 "SELECT * FROM documents WHERE sha256 = ?", (sha256,)
             ).fetchone()
 
+    def delete_document(self, document_id: str) -> None:
+        with self.connect() as connection:
+            connection.execute("DELETE FROM documents WHERE id = ?", (document_id,))
+
     def add_document(
         self,
         document_id: str,
@@ -171,10 +175,10 @@ class Store:
             ).fetchone()
         return row["text"] if row else None
 
-    def add_fact(self, fact: StoredFact) -> None:
+    def add_fact(self, fact: StoredFact) -> bool:
         payload = fact.model_dump(mode="json")
         with self.connect() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO facts(
                     id, document_id, chunk_index, subject, predicate, object_text,
@@ -192,6 +196,7 @@ class Store:
                 """,
                 {**payload, "scope_json": json.dumps(payload.pop("scope"))},
             )
+        return cursor.rowcount == 1
 
     def add_relation(self, relation: StoredRelation) -> None:
         payload = relation.model_dump(mode="json")
