@@ -1,0 +1,38 @@
+[project]
+name = "proofline"
+version = "0.1.0"
+description = "A page-grounded fact knowledge layer for financial PDFs"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "openai>=2.8.0",
+  "pydantic>=2.10.0",
+  "pymupdf>=1.26.0",
+  "python-dotenv>=1.0.1",
+  "streamlit>=1.47.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.9.0",
+]
+
+[project.scripts]
+proofline = "proofline.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/proofline"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+

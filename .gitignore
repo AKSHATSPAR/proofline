@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+*.db
+*.db-shm
+*.db-wal
+tmp/
+output/
+data/starter-datasets/
+superjoin-vit-2026-assignment.pdf
+starter-datasets.zip
+
