@@ -1,12 +1,12 @@
 # Proofline
 
-Proofline is a page-grounded fact knowledge layer for financial PDFs. It extracts atomic claims,
-rejects evidence it cannot verify, and explains whether cross-document facts corroborate,
-contradict, or reconcile through context.
+Proofline answers a practical question: when several PDFs talk about the same subject, do they
+agree? It pulls out individual facts, keeps the source page beside each one, and explains whether
+two claims support each other, conflict, or differ for a valid reason such as time or scope.
 
-The repository opens with a source-verified India macroeconomy demo, so the complete review
-experience works without credentials. Processing new PDFs uses Gemini's free API tier by default;
-OpenAI remains an optional provider.
+The app opens with an India macroeconomy example that I checked against the original PDFs. You can
+explore that example without an API key. To process new files, the default setup uses Gemini's free
+API tier. OpenAI is also supported if you already use it.
 
 ## Setup and Run Instructions
 
@@ -32,7 +32,7 @@ uv run proofline-serve
 
 Keep the Google AI Studio project on the **Free Tier** and do not select **Set up billing**. The
 default model is `gemini-3.7-flash`. Google states that free-tier prompts and responses may be used
-to improve its products, so use the included public starter documents—not confidential material.
+to improve its products, so use the included public starter documents, not confidential material.
 
 To use OpenAI instead, set `PROOFLINE_PROVIDER=openai` and `OPENAI_API_KEY` in `.env`. Provider keys
 stay server-side and are never sent to the browser.
@@ -52,15 +52,14 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-The latest real-model evaluation is documented in
-[`docs/live-evaluation.md`](docs/live-evaluation.md).
-The product and open-source benchmarking that informed the architecture is recorded in
+I recorded the latest real-model test in [`docs/live-evaluation.md`](docs/live-evaluation.md). Notes
+from studying similar products and open-source projects are in
 [`docs/design-benchmark.md`](docs/design-benchmark.md).
 
 ## Video Demo
 
-The final 3-minute demo link will be added after recording. A concise recording script is included
-in [`docs/demo-script.md`](docs/demo-script.md).
+The final video link will go here after recording. I have kept the walkthrough under three minutes;
+the outline is in [`docs/demo-script.md`](docs/demo-script.md).
 
 ## Approach
 
@@ -80,25 +79,28 @@ PDF upload
    -> API and review UI
 ```
 
-The fact schema is intentionally dynamic. Rather than a fixed financial table, each atomic fact has
-a subject, predicate, typed value, original and normalized units, period or as-of date, scope,
-modality, confidence, semantic comparison key, and a short source quote. New predicates can appear
-without a database migration.
+I did not want to lock the project to a small list of financial metrics. Each fact stores a subject,
+predicate, typed value, original and normalized units, date or period, scope, modality, confidence,
+comparison key, and a short source quote. This lets a new kind of fact appear without requiring a
+database migration.
 
 ### Grounding before reasoning
 
-The extractor must return a verbatim quote and one-based PDF page. Whitespace is normalized, then
-the quote is checked against text extracted from that exact page. If it cannot be anchored, the
-candidate becomes a diagnostic rather than a fact. This deliberately trades some recall for a fact
-layer a reviewer can audit. For accepted facts, Proofline recovers the quote's PDF coordinates and
-highlights the exact source span in the review drawer; normalized footnote-glyph variants use a
-deterministic word-sequence fallback.
+My main rule is that a fact should not enter the knowledge layer unless its evidence can be found on
+the claimed PDF page. The model must return a verbatim quote and a one-based page number. Proofline
+normalizes whitespace and checks the quote against the text from that page. A failed match goes to
+Diagnostics instead of becoming a fact.
+
+For facts that pass, Proofline finds the quote's coordinates and highlights the words in the source
+page. A small word-sequence fallback handles PDF quirks such as superscript footnote numbers. This
+may miss a few valid facts, but I prefer a visible omission to a claim that cannot be checked.
 
 ### Cross-document comparison
 
-The model emits a period- and unit-independent comparison key. Lexical blocking over that key and
-the subject/predicate pair avoids comparing every fact with every other fact. Only cross-document
-candidates are adjudicated. The adjudicator must choose:
+Comparing every fact with every other fact quickly becomes wasteful. To avoid that, the extractor
+creates a comparison key that leaves out formatting, period, and unit differences. Proofline uses
+that key, along with the subject and predicate, to find plausible cross-document pairs. The
+comparison step then chooses one of four results:
 
 - `corroborates`: materially the same claim after safe normalization;
 - `contradicts`: the same subject, metric, period, scope, and modality with incompatible values;
@@ -116,9 +118,9 @@ candidates are adjudicated. The adjudicator must choose:
 
 ### Storage and incremental behavior
 
-SQLite keeps documents, page text, accepted facts, relationships, and failure records. A SHA-256
-content hash makes ingestion idempotent: adding the same PDF again does not rebuild its facts.
-Relationships are appended for new cross-document candidates instead of rebuilding the layer.
+SQLite stores the documents, extracted page text, accepted facts, relationships, and failures. A
+SHA-256 hash identifies each source file. Uploading the same PDF twice does not process it twice, and
+new documents add relationships without rebuilding the existing layer.
 
 ### API
 
@@ -134,44 +136,45 @@ Relationships are appended for new cross-document candidates instead of rebuildi
 
 ## Important Decisions and Trade-offs
 
-- A compact FastAPI service and dependency-free browser interface give reviewers both an API and a
-  polished inspection flow without a separate frontend build toolchain.
-- SQLite is sufficient for this prototype and keeps the submission runnable. A graph database would
-  add operations without improving discovery or grounding, which are the important parts here.
-- Verbatim evidence validation is deterministic. Relationship labels remain probabilistic and carry
-  confidence plus an explicit explanation.
-- Visual citations are computed from the original PDF at review time, so a banker can move from a
-  derived fact to the exact words on the page instead of trusting a detached quotation.
-- Page-level provenance is robust to printed page numbers that jump inside curated excerpts.
-- API calls operate on bounded chunks, while content hashes and candidate blocking control repeat
-  work and pairwise cost.
-- The model adapter is provider-independent. Gemini's no-payment free tier is the default for easy
-  evaluation, while an OpenAI adapter is retained for teams that already have API billing.
-- Retryable provider errors are retried with bounded backoff. Fully failed or partially processed
-  documents are marked accordingly and can be submitted again instead of being permanently skipped.
+- I used one FastAPI process and a small browser interface so the reviewer gets both an API and a
+  useful inspection screen without setting up a separate frontend project.
+- SQLite is enough for this prototype. A graph database would add setup work, but it would not make
+  fact discovery or source checking more reliable.
+- Evidence matching is deterministic. Relationship labels still use a model, so every label carries
+  a confidence score and a short explanation.
+- Highlights are created from the original PDF when the reviewer opens a fact. They are not citation
+  coordinates invented by the model.
+- I use the PDF's actual page index because printed page numbers can jump inside curated excerpts.
+- Bounded chunks keep model requests manageable. File hashes prevent duplicate extraction, and
+  candidate filtering limits the number of fact pairs sent for comparison.
+- Gemini is the default because its free tier makes the project easier to try. The OpenAI adapter is
+  there for people who already have API billing.
+- Temporary provider errors are retried with bounded backoff. A document can be marked `partial` or
+  `failed`, and it can be submitted again after the provider recovers.
 
 ## Limitations and Next Steps
 
-- Multi-column prose works well, but dense tables need layout-coordinate reconstruction. The demo's
-  failure case shows why row text alone is unsafe.
-- Scanned PDFs need OCR before the current text path can process them.
-- Semantic candidate blocking currently combines model-generated keys with lexical similarity. At
-  larger scale, I would add embeddings plus an approximate nearest-neighbor index.
-- The background executor is intentionally single-process. Production would move jobs to a durable
-  queue with retries, cancellation, and per-document progress.
-- Dates and unit conversions are model-produced, then reviewed during relationship adjudication.
-  A financial unit/date normalization test suite would reduce that remaining uncertainty.
-- The prototype stores source PDFs locally. Production requires encrypted object storage, retention
-  controls, tenant isolation, and deletion workflows.
+- Dense tables are the clearest weak spot. Multi-column prose usually works, but plain extracted text
+  can lose the connection between a table header and its value. The demo keeps one such failure in
+  Diagnostics instead of guessing.
+- Scanned PDFs need an OCR step before Proofline can read them.
+- Candidate filtering currently combines model-created keys with lexical similarity. For a much
+  larger collection, I would test embeddings and an approximate nearest-neighbor index.
+- Jobs run in one background process. A production version would need a durable queue, cancellation,
+  retries, and saved progress for each chunk.
+- The model suggests normalized dates and units. A larger labelled test set would help check those
+  conversions independently.
+- Source PDFs are stored on the local machine. A real multi-tenant service would need encrypted
+  object storage, retention settings, tenant isolation, and deletion workflows.
 
 ## Additional Notes
 
-The repository never stores API credentials. `GEMINI_API_KEY` or `OPENAI_API_KEY` is read from the
-local environment. OpenAI responses are requested with storage disabled. The included JSON sample
-contains selected, manually source-verified outputs, not hard-coded extraction logic; uploaded
-documents always travel through the general pipeline.
+API keys are read from the local environment and are never stored in the repository. OpenAI requests
+also disable response storage. The included JSON file contains a small set of outputs that I checked
+against the source PDFs. It is sample data for the no-key demo, not special-case extraction logic.
+Every uploaded PDF still goes through the same general pipeline.
 
-AI tools used: Codex supported implementation and source inspection. The default runtime uses the
-Gemini API's JSON Schema outputs for extraction and relationship adjudication; the optional OpenAI
-adapter uses strict JSON Schema outputs. All accepted evidence still passes a deterministic
-page-level gate outside the model.
+I used Codex throughout implementation to inspect the source material, discuss design choices, write
+and review code, and test the browser flow. Gemini is the runtime model used for extraction and fact
+comparison. Both model adapters request schema-constrained JSON, but the final evidence check runs in
+ordinary Python code outside the model.
