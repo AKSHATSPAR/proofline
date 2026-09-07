@@ -54,6 +54,8 @@ uv run ruff format --check .
 
 The latest real-model evaluation is documented in
 [`docs/live-evaluation.md`](docs/live-evaluation.md).
+The product and open-source benchmarking that informed the architecture is recorded in
+[`docs/design-benchmark.md`](docs/design-benchmark.md).
 
 ## Video Demo
 
@@ -71,6 +73,7 @@ PDF upload
    -> page-labelled, bounded chunks
    -> structured fact discovery
    -> verbatim evidence gate
+   -> word-level source anchoring
    -> SQLite fact register
    -> semantic candidate blocking
    -> relationship adjudication + explanation
@@ -87,7 +90,9 @@ without a database migration.
 The extractor must return a verbatim quote and one-based PDF page. Whitespace is normalized, then
 the quote is checked against text extracted from that exact page. If it cannot be anchored, the
 candidate becomes a diagnostic rather than a fact. This deliberately trades some recall for a fact
-layer a reviewer can audit.
+layer a reviewer can audit. For accepted facts, Proofline recovers the quote's PDF coordinates and
+highlights the exact source span in the review drawer; normalized footnote-glyph variants use a
+deterministic word-sequence fallback.
 
 ### Cross-document comparison
 
@@ -123,6 +128,8 @@ Relationships are appended for new cross-document candidates instead of rebuildi
 - `GET /api/relations` - enriched relationship pairs
 - `GET /api/documents/{id}/pages/{page}` - extracted page text
 - `GET /api/documents/{id}/pages/{page}/image` - rendered source page
+- `GET /api/facts/{id}/evidence-image` - source page with the fact's exact evidence highlighted
+- `GET /api/audits/grounding` - deterministic page- and word-anchor coverage
 - `GET /api/failures` - quarantined extraction and reasoning failures
 
 ## Important Decisions and Trade-offs
@@ -133,6 +140,8 @@ Relationships are appended for new cross-document candidates instead of rebuildi
   add operations without improving discovery or grounding, which are the important parts here.
 - Verbatim evidence validation is deterministic. Relationship labels remain probabilistic and carry
   confidence plus an explicit explanation.
+- Visual citations are computed from the original PDF at review time, so a banker can move from a
+  derived fact to the exact words on the page instead of trusting a detached quotation.
 - Page-level provenance is robust to printed page numbers that jump inside curated excerpts.
 - API calls operate on bounded chunks, while content hashes and candidate blocking control repeat
   work and pairwise cost.

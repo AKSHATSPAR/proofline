@@ -258,6 +258,18 @@ class Store:
             ).fetchall()
         return [self._fact_from_row(row) for row in rows]
 
+    def fact(self, fact_id: str) -> StoredFact | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT f.*, d.name AS document_name
+                FROM facts f JOIN documents d ON d.id = f.document_id
+                WHERE f.id = ?
+                """,
+                (fact_id,),
+            ).fetchone()
+        return self._fact_from_row(row) if row else None
+
     def relations(self) -> list[StoredRelation]:
         with self.connect() as connection:
             rows = connection.execute(

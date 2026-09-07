@@ -19,7 +19,9 @@ Mention content hashing, page-separated chunks, and the fail-closed evidence gat
 ## 0:55-1:30 - Corroboration and evidence
 
 Filter to **Corroborates**. Show RBI 6.5% beside IMF 6.5% for FY2024/25. Open one evidence drawer
-and point to the rendered PDF page, page number, verbatim quote, scope, and confidence.
+and point to the exact highlighted source span, page number, verbatim quote, scope, and confidence.
+Mention that the highlight is recovered from PDF coordinates after the quote passes the fail-closed
+evidence gate; it is not a model-generated citation.
 
 ## 1:30-1:55 - Likely contradiction
 

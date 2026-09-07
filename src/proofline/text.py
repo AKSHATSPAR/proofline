@@ -94,3 +94,50 @@ def verify_evidence(quote: str, page_text: str) -> tuple[bool, str]:
     if normalized_quote in normalized_page:
         return True, "exact"
     return False, "not_found"
+
+
+def locate_evidence_rects(page: pymupdf.Page, quote: str) -> list[pymupdf.Rect]:
+    """Locate a verified quote on its PDF page for visual, word-level provenance.
+
+    PyMuPDF's native search handles wrapped and hyphenated text. The word-sequence fallback covers
+    glyph variants that the evidence gate intentionally normalizes, such as superscript footnotes.
+    """
+
+    quads = page.search_for(quote, quads=True)
+    if quads:
+        return [quad.rect for quad in quads]
+
+    quote_tokens = [token.casefold() for token in normalize_whitespace(quote).split()]
+    if not quote_tokens:
+        return []
+
+    words = page.get_text("words", sort=False)
+    word_tokens = [normalize_whitespace(word[4]).casefold() for word in words]
+    match_start = next(
+        (
+            index
+            for index in range(len(word_tokens) - len(quote_tokens) + 1)
+            if word_tokens[index : index + len(quote_tokens)] == quote_tokens
+        ),
+        None,
+    )
+    if match_start is None:
+        return []
+
+    matched_words = words[match_start : match_start + len(quote_tokens)]
+    rects: list[pymupdf.Rect] = []
+    current_line: tuple[int, int] | None = None
+    current_rect: pymupdf.Rect | None = None
+    for word in matched_words:
+        line = (word[5], word[6])
+        word_rect = pymupdf.Rect(word[:4])
+        if line != current_line:
+            if current_rect is not None:
+                rects.append(current_rect)
+            current_line = line
+            current_rect = word_rect
+        elif current_rect is not None:
+            current_rect.include_rect(word_rect)
+    if current_rect is not None:
+        rects.append(current_rect)
+    return rects

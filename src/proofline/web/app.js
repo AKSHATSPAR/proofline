@@ -5,6 +5,7 @@ const state = {
   facts: [],
   relations: [],
   failures: [],
+  audit: null,
   relationFilter: "all",
 };
 
@@ -143,7 +144,7 @@ function openEvidence(factId) {
   byId("evidenceQuote").textContent = `“${fact.evidence_quote}”`;
   byId("evidenceContext").innerHTML = `<strong>Context:</strong> ${esc(fact.extraction_note || fact.scope.join(" · "))}<br /><strong>Comparison key:</strong> ${esc(fact.comparison_key)} · evidence match: ${esc(fact.evidence_status)}`;
   byId("pdfFrameWrap").innerHTML = fact.source_available
-    ? `<div class="page-preview-head"><span>Rendered source page</span><a href="/api/documents/${encodeURIComponent(fact.document_id)}/file#page=${fact.page_number}" target="_blank" rel="noreferrer">Open PDF ↗</a></div><img class="page-preview" alt="${esc(fact.document_name)} page ${fact.page_number}" src="/api/documents/${encodeURIComponent(fact.document_id)}/pages/${fact.page_number}/image" />`
+    ? `<div class="page-preview-head"><span><i class="anchor-dot"></i>Exact source span highlighted</span><a href="/api/documents/${encodeURIComponent(fact.document_id)}/file#page=${fact.page_number}" target="_blank" rel="noreferrer">Open PDF ↗</a></div><img class="page-preview" alt="${esc(fact.document_name)} page ${fact.page_number} with the evidence quote highlighted" src="/api/facts/${encodeURIComponent(fact.id)}/evidence-image" />`
     : `<div class="pdf-missing">The original PDF is not bundled with the repository. The verified quote, document name, and PDF page remain available as sample output.</div>`;
   const drawer = byId("evidenceDialog");
   drawer.querySelector(".drawer-card").scrollTop = 0;
@@ -152,11 +153,14 @@ function openEvidence(factId) {
 
 async function refresh() {
   try {
-    const [config, summary, documents, facts, relations, failures] = await Promise.all([
-      api("/api/config"), api("/api/summary"), api("/api/documents"), api("/api/facts"), api("/api/relations"), api("/api/failures"),
+    const [config, summary, documents, facts, relations, failures, audit] = await Promise.all([
+      api("/api/config"), api("/api/summary"), api("/api/documents"), api("/api/facts"), api("/api/relations"), api("/api/failures"), api("/api/audits/grounding"),
     ]);
-    Object.assign(state, { config, summary, documents, facts, relations, failures });
+    Object.assign(state, { config, summary, documents, facts, relations, failures, audit });
     renderSummary(); renderRelationships(); renderFacts(); renderDocuments(); renderFailures();
+    byId("wordAnchorCoverage").textContent = audit.source_available
+      ? `${audit.word_anchored} / ${audit.source_available} located`
+      : "Sources unavailable";
     byId("processingMode").className = `mode-note ${config.live_processing ? "" : "offline"}`;
     byId("processingMode").textContent = config.live_processing
       ? `Live processing is enabled with ${config.provider}/${config.model}. Files are processed incrementally in the background.`

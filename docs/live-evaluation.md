@@ -23,6 +23,10 @@ Every accepted quote passed the deterministic page-level evidence check. In addi
 8, 17, 20, 22, and 23 were rendered and visually inspected. The model's table-column mappings for
 FY24/Q4 FY24, dates, units, and signs matched the rendered source on those sampled pages.
 
+After adding coordinate-level provenance, the local grounding audit was run over the same database:
+24/24 accepted facts still passed the page gate, and 24/24 were located at word level in the
+original PDF. This audit uses PDF text coordinates and makes no model calls.
+
 The rejected candidate came from a multi-column working-capital table whose extracted reading order
 did not preserve a verbatim row. Quarantining it was the correct fail-closed outcome.
 

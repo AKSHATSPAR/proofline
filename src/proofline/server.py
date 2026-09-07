@@ -15,6 +15,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from proofline.audit import grounding_audit
 from proofline.demo import DEMO_PATH, load_demo
 from proofline.llm import (
     create_extractor,
@@ -25,6 +26,7 @@ from proofline.llm import (
 )
 from proofline.pipeline import KnowledgeLayer
 from proofline.store import Store
+from proofline.text import locate_evidence_rects
 
 PACKAGE_ROOT = Path(__file__).parent
 WEB_ROOT = PACKAGE_ROOT / "web"
@@ -192,6 +194,10 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     def failures() -> list[dict]:
         return store.failures()
 
+    @app.get("/api/audits/grounding")
+    def audit_grounding() -> dict:
+        return grounding_audit(store)
+
     @app.get("/api/documents/{document_id}/pages/{page_number}")
     def page_text(document_id: str, page_number: int) -> dict:
         text = store.page_text(document_id, page_number)
@@ -226,6 +232,42 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             content=image,
             media_type="image/png",
             headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    @app.get("/api/facts/{fact_id}/evidence-image")
+    def fact_evidence_image(fact_id: str) -> Response:
+        fact = store.fact(fact_id)
+        if fact is None:
+            raise HTTPException(status_code=404, detail="Fact not found")
+        document = store.document(fact.document_id)
+        if not document or not document.get("source_path"):
+            raise HTTPException(status_code=404, detail="Source PDF is not available locally")
+        path = Path(document["source_path"])
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="Source PDF is not available locally")
+
+        with pymupdf.open(path) as pdf:
+            if fact.page_number < 1 or fact.page_number > pdf.page_count:
+                raise HTTPException(status_code=404, detail="Evidence page not found")
+            page = pdf[fact.page_number - 1]
+            rects = locate_evidence_rects(page, fact.evidence_quote)
+            if rects:
+                annotation = page.add_highlight_annot(rects)
+                annotation.set_colors(stroke=(0.95, 0.49, 0.08))
+                annotation.set_opacity(0.42)
+                annotation.update()
+                page = pdf.reload_page(page)
+            pixmap = page.get_pixmap(matrix=pymupdf.Matrix(1.6, 1.6), alpha=False)
+            image = pixmap.tobytes("png")
+
+        return Response(
+            content=image,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "private, max-age=3600",
+                "X-Proofline-Evidence-Spans": str(len(rects)),
+                "X-Proofline-Evidence-Status": "located" if rects else "not-located",
+            },
         )
 
     @app.post("/api/demo")
