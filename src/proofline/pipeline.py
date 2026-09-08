@@ -19,6 +19,7 @@ from proofline.text import (
 from proofline.validation import validate_fact_semantics, validate_relation_semantics
 
 ProgressCallback = Callable[[str, int, int], None]
+CHUNK_PIPELINE_REVISION = "fact-grounding-v2"
 
 
 @dataclass(frozen=True)
@@ -61,21 +62,22 @@ class KnowledgeLayer:
                 status="ready",
                 skipped=True,
             )
-        if existing is not None:
-            self.store.delete_document(existing["id"])
-
-        document_id = sha256[:16]
+        document_id = existing["id"] if existing is not None else sha256[:16]
         pages = extract_pages(pdf_path)
         page_lookup = {page.page_number: page.text for page in pages}
-        self.store.add_document(
-            document_id,
-            pdf_path.name,
-            sha256,
-            [(page.page_number, page.text) for page in pages],
-            source_path=str(pdf_path.resolve()),
-        )
+        if existing is None:
+            self.store.add_document(
+                document_id,
+                pdf_path.name,
+                sha256,
+                [(page.page_number, page.text) for page in pages],
+                source_path=str(pdf_path.resolve()),
+            )
+        else:
+            self.store.resume_document(document_id, pdf_path.name, str(pdf_path.resolve()))
 
         unreadable_pages = [page for page in pages if not normalize_whitespace(page.text)]
+        self.store.clear_document_failures(document_id, "page_extraction")
         for page in unreadable_pages:
             self.store.add_failure(
                 document_id,
@@ -89,19 +91,24 @@ class KnowledgeLayer:
             )
 
         chunks = build_chunks(pages)
+        fingerprints = {
+            chunk.index: hashlib.sha256(
+                f"{CHUNK_PIPELINE_REVISION}|{chunk.text}".encode()
+            ).hexdigest()
+            for chunk in chunks
+        }
         facts_added = 0
         facts_rejected = 0
-        chunks_failed = 0
-        chunks_empty = 0
         try:
             for position, chunk in enumerate(chunks, start=1):
                 if progress:
                     progress(pdf_path.name, position, len(chunks))
+                if not self.store.start_chunk(document_id, chunk.index, fingerprints[chunk.index]):
+                    continue
                 try:
                     batch = self.extractor.extract(pdf_path.name, chunk.text)
                 # A bad API response must not discard facts accepted from earlier chunks.
                 except Exception as error:  # noqa: BLE001
-                    chunks_failed += 1
                     self.store.add_failure(
                         document_id,
                         "extraction",
@@ -109,10 +116,10 @@ class KnowledgeLayer:
                         chunk_index=chunk.index,
                         details={"pages": chunk.pages},
                     )
+                    self.store.finish_chunk(document_id, chunk.index, "failed")
                     continue
 
                 if not batch.facts:
-                    chunks_empty += 1
                     self.store.add_failure(
                         document_id,
                         "empty_extraction",
@@ -124,8 +131,10 @@ class KnowledgeLayer:
                             "next_step": "Review the source pages or retry with adjusted extraction instructions.",
                         },
                     )
+                    self.store.finish_chunk(document_id, chunk.index, "empty")
                     continue
 
+                accepted_in_chunk = 0
                 for candidate in batch.facts:
                     if candidate.page_number not in chunk.pages:
                         facts_rejected += 1
@@ -197,23 +206,30 @@ class KnowledgeLayer:
                     )
                     if self.store.add_fact(fact):
                         facts_added += 1
+                        accepted_in_chunk += 1
+                self.store.finish_chunk(
+                    document_id,
+                    chunk.index,
+                    "complete" if accepted_in_chunk else "rejected",
+                )
         except Exception:
             self.store.set_document_status(document_id, "failed")
             raise
+
+        chunk_states = self.store.chunk_statuses(document_id, fingerprints)
+        chunks_failed = sum(status == "failed" for status in chunk_states.values())
+        chunks_empty = sum(status == "empty" for status in chunk_states.values())
+        chunks_complete = sum(status == "complete" for status in chunk_states.values())
+        chunks_rejected = sum(status == "rejected" for status in chunk_states.values())
+        terminal_chunks = chunks_complete + chunks_rejected
 
         if not chunks or chunks_failed == len(chunks):
             status = "failed"
         elif chunks_empty == len(chunks):
             status = "empty"
-        elif (
-            facts_added == 0
-            and facts_rejected
-            and not chunks_failed
-            and not chunks_empty
-            and not unreadable_pages
-        ):
+        elif chunks_rejected == len(chunks) and not unreadable_pages:
             status = "rejected"
-        elif chunks_failed or chunks_empty or unreadable_pages:
+        elif terminal_chunks < len(chunks) or unreadable_pages:
             status = "partial"
         else:
             status = "ready"
@@ -238,9 +254,9 @@ class KnowledgeLayer:
             for relation in self.store.relations()
         }
         completed = existing | self.store.checked_relation_pairs()
-        added = 0
-        for left_id, right_id in candidate_pairs(facts, excluded_pairs=completed)[:max_pairs]:
-            ordered = tuple(sorted((left_id, right_id)))
+        pairs = candidate_pairs(facts, excluded_pairs=completed)[:max_pairs]
+        comparisons = []
+        for left_id, right_id in pairs:
             left = facts_by_id[left_id]
             right = facts_by_id[right_id]
             left_context = evidence_context(
@@ -251,22 +267,65 @@ class KnowledgeLayer:
                 self.store.page_text(right.document_id, right.page_number) or "",
                 right.evidence_quote,
             )
+            comparisons.append((left, right, left_context, right_context))
+
+        decisions = []
+        compare_many = getattr(self.extractor, "compare_many", None)
+        if comparisons and callable(compare_many):
             try:
-                decision = self.extractor.compare(
-                    left,
-                    right,
-                    left_context=left_context,
-                    right_context=right_context,
-                )
-            # Candidate pairs are independent; preserve the rest when one call fails.
+                batch = compare_many(comparisons)
             except Exception as error:  # noqa: BLE001
                 self.store.add_failure(
                     None,
                     "relation_classification",
                     str(error),
-                    details={"left_fact_id": left_id, "right_fact_id": right_id},
+                    details={"pair_count": len(comparisons)},
                 )
-                continue
+                return 0
+            by_index = {
+                decision.pair_index: decision
+                for decision in batch.decisions
+                if decision.pair_index < len(pairs)
+            }
+            for index, pair in enumerate(pairs):
+                decision = by_index.get(index)
+                if decision is None:
+                    self.store.add_failure(
+                        None,
+                        "relation_classification",
+                        "The batch response omitted a candidate pair",
+                        details={"left_fact_id": pair[0], "right_fact_id": pair[1]},
+                    )
+                    continue
+                decisions.append((pair, decision))
+        else:
+            # Small test adapters and third-party implementations can retain the
+            # one-pair method without losing compatibility.
+            for pair, (left, right, left_context, right_context) in zip(
+                pairs, comparisons, strict=True
+            ):
+                try:
+                    decision = self.extractor.compare(
+                        left,
+                        right,
+                        left_context=left_context,
+                        right_context=right_context,
+                    )
+                except Exception as error:  # noqa: BLE001
+                    self.store.add_failure(
+                        None,
+                        "relation_classification",
+                        str(error),
+                        details={"left_fact_id": pair[0], "right_fact_id": pair[1]},
+                    )
+                    continue
+                decisions.append((pair, decision))
+
+        added = 0
+        for (left_id, right_id), decision in decisions:
+            ordered = tuple(sorted((left_id, right_id)))
+            left = facts_by_id[left_id]
+            right = facts_by_id[right_id]
             semantic_issues = validate_relation_semantics(left, right, decision)
             if semantic_issues:
                 self.store.mark_relation_checked(left_id, right_id, "rejected")
@@ -288,7 +347,7 @@ class KnowledgeLayer:
             relation_id = hashlib.sha256(f"{left_id}|{right_id}".encode()).hexdigest()[:20]
             self.store.add_relation(
                 StoredRelation(
-                    **decision.model_dump(),
+                    **decision.model_dump(exclude={"pair_index"}),
                     id=relation_id,
                     left_fact_id=left_id,
                     right_fact_id=right_id,

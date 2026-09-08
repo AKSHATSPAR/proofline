@@ -18,6 +18,14 @@ def test_chunks_keep_page_labels_and_bounds() -> None:
     assert chunks[1].pages == [2]
 
 
+def test_default_chunk_size_keeps_large_documents_within_a_small_request_budget() -> None:
+    pages = [Page(page_number=index, text="A" * 9_500) for index in range(1, 101)]
+
+    chunks = build_chunks(pages)
+
+    assert len(chunks) <= 20
+
+
 def test_evidence_matching_is_whitespace_tolerant_but_not_fuzzy() -> None:
     page = "Revenue from customers\nwas INR 8,142 crore in FY24."
 

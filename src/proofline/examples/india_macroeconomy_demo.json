@@ -3,7 +3,7 @@
     {
       "id": "demo-economic-survey",
       "name": "01-india-economic-survey-2024-25-excerpt.pdf",
-      "sha256": "demo-india-economic-survey-2024-25",
+      "sha256": "86f2e79a3b7b4a3698907897297b9e17fe06d39c074d52e68303066d18a2cf71",
       "page_count": 89,
       "relative_source": "src/proofline/examples/sources/01-india-economic-survey-2024-25-excerpt.pdf",
       "pages": [
@@ -16,7 +16,7 @@
     {
       "id": "demo-rbi-annual-report",
       "name": "02-reserve-bank-of-india-annual-report-2024-25-excerpt.pdf",
-      "sha256": "demo-rbi-annual-report-2024-25",
+      "sha256": "73209a2caa2f5671f2feae065d01602302daaaac9e8230c9c471d99243fd079e",
       "page_count": 100,
       "relative_source": "src/proofline/examples/sources/02-rbi-annual-report-2024-25-excerpt.pdf",
       "pages": [
@@ -33,7 +33,7 @@
     {
       "id": "demo-imf-article-iv",
       "name": "03-imf-india-2025-article-iv-excerpt.pdf",
-      "sha256": "demo-imf-india-2025-article-iv",
+      "sha256": "f6d3cfecafd9548920349b29b1137d645c20073434d0ac66485ead9738a0ea4d",
       "page_count": 95,
       "relative_source": "src/proofline/examples/sources/03-imf-india-2025-article-iv-excerpt.pdf",
       "pages": [

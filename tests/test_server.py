@@ -24,6 +24,7 @@ def test_demo_exposes_all_required_cases(tmp_path: Path) -> None:
             "reconciles": 1,
         },
     }
+    assert client.get("/api/config").json()["dataset_origin"] == "curated_source_verified"
     assert {item["relation_type"] for item in relations} == {
         "corroborates",
         "contradicts",

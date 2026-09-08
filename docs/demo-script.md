@@ -8,14 +8,15 @@ Open the Relationships view.
 topic, do they agree? It pulls out facts, keeps the source page attached, and explains real and
 apparent conflicts. This example uses three reports on the Indian economy.”
 
-## 0:25-0:55 - Process a PDF
+## 0:25-0:55 - Explain the review set
 
-Click **Add PDFs**, upload the earnings presentation, and show the background progress. Explain that
-the included example can still be reviewed without a key, while new uploads use a free-tier
-`GEMINI_API_KEY`.
+Point to the curated, source-verified label and the page and field checks in the pipeline card. Open
+**Documents** to show that the original report excerpts are bundled for review. Explain that the
+public site is deliberately read only, while a local copy can process new PDFs with a free-tier key.
 
-Briefly mention that pages stay separate, repeat uploads are skipped by file hash, and a fact is
-rejected if its quote cannot be found on the claimed page.
+Briefly mention that pages stay separate, repeat uploads are skipped by file hash, interrupted runs
+resume from unfinished chunks, and a fact is rejected if its quote cannot be found on the claimed
+page.
 
 ## 0:55-1:30 - Corroboration and evidence
 

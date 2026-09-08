@@ -3,7 +3,15 @@ from pathlib import Path
 import pymupdf
 
 from proofline.pipeline import KnowledgeLayer
-from proofline.schemas import FactBatch, FactCandidate, RelationDecision, StoredFact
+from proofline.schemas import (
+    FactBatch,
+    FactCandidate,
+    IndexedRelationDecision,
+    RelationDecision,
+    RelationDecisionBatch,
+    StoredFact,
+    TextChunk,
+)
 from proofline.store import Store
 
 
@@ -84,12 +92,85 @@ class UnrelatedExtractor(FakeExtractor):
         )
 
 
+class BatchUnrelatedExtractor(UnrelatedExtractor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.batch_calls = 0
+
+    def compare(self, left, right, left_context="", right_context="") -> RelationDecision:
+        raise AssertionError("The production adapter should use the batch comparison path")
+
+    def compare_many(self, pairs) -> RelationDecisionBatch:
+        self.batch_calls += 1
+        return RelationDecisionBatch(
+            decisions=[
+                IndexedRelationDecision(
+                    pair_index=index,
+                    relation_type="unrelated",
+                    confidence=0.95,
+                    explanation="The source context does not support a material relationship.",
+                    decisive_context=["insufficient overlap"],
+                )
+                for index, _ in enumerate(pairs)
+            ]
+        )
+
+
+class ResumeExtractor(FakeExtractor):
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.failed_second = False
+
+    def extract(self, document_name: str, chunk_text: str) -> FactBatch:
+        self.calls.append(chunk_text)
+        if chunk_text == "second" and not self.failed_second:
+            self.failed_second = True
+            raise RuntimeError("temporary second-chunk failure")
+        if chunk_text == "first":
+            return super().extract(document_name, chunk_text)
+        fact = (
+            super()
+            .extract(document_name, chunk_text)
+            .facts[0]
+            .model_copy(
+                update={
+                    "predicate": "parcel volume",
+                    "object_text": "100 million parcels",
+                    "value_number": 100,
+                    "unit": "million parcels",
+                    "normalized_value": None,
+                    "normalized_unit": None,
+                    "comparison_key": "delhivery|parcel volume",
+                    "evidence_quote": (
+                        "Delhivery's consolidated parcel volume was 100 million parcels in FY24."
+                    ),
+                }
+            )
+        )
+        return FactBatch(facts=[fact])
+
+
 def make_pdf(path: Path) -> None:
     document = pymupdf.open()
     page = document.new_page()
     page.insert_text(
         (72, 72),
         "Delhivery's consolidated revenue from customers was INR 8,142 crore in FY24.",
+    )
+    document.save(path)
+    document.close()
+
+
+def make_two_fact_pdf(path: Path) -> None:
+    document = pymupdf.open()
+    page = document.new_page()
+    page.insert_text(
+        (72, 72),
+        "Delhivery's consolidated revenue from customers was INR 8,142 crore in FY24.",
+    )
+    page.insert_text(
+        (72, 96),
+        "Delhivery's consolidated parcel volume was 100 million parcels in FY24.",
     )
     document.save(path)
     document.close()
@@ -127,6 +208,30 @@ def test_fully_failed_document_can_be_retried(tmp_path: Path) -> None:
     assert retried.status == "ready"
     assert retried.skipped is False
     assert retried.facts_added == 1
+    assert store.summary()["failures"] == 0
+
+
+def test_partial_retry_preserves_completed_chunks(tmp_path: Path, monkeypatch) -> None:
+    pdf_path = tmp_path / "annual-report.pdf"
+    make_two_fact_pdf(pdf_path)
+    store = Store(tmp_path / "proofline.db")
+    extractor = ResumeExtractor()
+    monkeypatch.setattr(
+        "proofline.pipeline.build_chunks",
+        lambda pages: [
+            TextChunk(index=0, pages=[1], text="first"),
+            TextChunk(index=1, pages=[1], text="second"),
+        ],
+    )
+    layer = KnowledgeLayer(store, extractor)
+
+    first = layer.ingest_pdf(pdf_path)
+    retried = layer.ingest_pdf(pdf_path)
+
+    assert first.status == "partial"
+    assert retried.status == "ready"
+    assert extractor.calls == ["first", "second", "second"]
+    assert len(store.facts()) == 2
     assert store.summary()["failures"] == 0
 
 
@@ -209,3 +314,34 @@ def test_unrelated_relation_decision_is_not_repeated(tmp_path: Path) -> None:
     assert layer.discover_relations() == 0
     assert extractor.comparisons == 1
     assert store.checked_relation_pairs() == {("fact-a", "fact-b")}
+
+
+def test_relation_candidates_are_classified_in_one_batch(tmp_path: Path) -> None:
+    store = Store(tmp_path / "proofline.db")
+    source_fact = FakeExtractor().extract("source.pdf", "text").facts[0]
+    for suffix in ("a", "b", "c"):
+        document_id = f"doc-{suffix}"
+        store.add_document(
+            document_id,
+            f"{suffix}.pdf",
+            f"hash-{suffix}",
+            [(1, source_fact.evidence_quote)],
+        )
+        store.set_document_status(document_id, "ready")
+        store.add_fact(
+            StoredFact(
+                **source_fact.model_dump(),
+                id=f"fact-{suffix}",
+                document_id=document_id,
+                document_name=f"{suffix}.pdf",
+                chunk_index=0,
+                evidence_status="exact",
+                extraction_method="test",
+            )
+        )
+
+    extractor = BatchUnrelatedExtractor()
+
+    assert KnowledgeLayer(store, extractor).discover_relations() == 0
+    assert extractor.batch_calls == 1
+    assert len(store.checked_relation_pairs()) == 3

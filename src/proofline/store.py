@@ -29,6 +29,15 @@ CREATE TABLE IF NOT EXISTS pages (
     PRIMARY KEY (document_id, page_number)
 );
 
+CREATE TABLE IF NOT EXISTS chunk_runs (
+    document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL,
+    fingerprint TEXT NOT NULL,
+    status TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (document_id, chunk_index)
+);
+
 CREATE TABLE IF NOT EXISTS facts (
     id TEXT PRIMARY KEY,
     document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
@@ -126,6 +135,17 @@ class Store:
         with self.connect() as connection:
             connection.execute("DELETE FROM documents WHERE id = ?", (document_id,))
 
+    def resume_document(self, document_id: str, name: str, source_path: str | None) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """
+                UPDATE documents
+                SET name = ?, source_path = ?, status = 'processing'
+                WHERE id = ?
+                """,
+                (name, source_path, document_id),
+            )
+
     def add_document(
         self,
         document_id: str,
@@ -154,6 +174,84 @@ class Store:
             connection.execute(
                 "UPDATE documents SET status = ? WHERE id = ?", (status, document_id)
             )
+
+    def clear_document_failures(self, document_id: str, stage: str) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "DELETE FROM failures WHERE document_id = ? AND stage = ?",
+                (document_id, stage),
+            )
+
+    def start_chunk(self, document_id: str, chunk_index: int, fingerprint: str) -> bool:
+        """Prepare one source chunk and return False when its result is reusable."""
+
+        with self.connect() as connection:
+            previous = connection.execute(
+                """
+                SELECT fingerprint, status FROM chunk_runs
+                WHERE document_id = ? AND chunk_index = ?
+                """,
+                (document_id, chunk_index),
+            ).fetchone()
+            if (
+                previous is not None
+                and previous["fingerprint"] == fingerprint
+                and previous["status"] in {"complete", "rejected"}
+            ):
+                return False
+
+            # A changed pipeline revision or a retry replaces only this chunk. Facts
+            # accepted from every other completed chunk remain intact.
+            connection.execute(
+                "DELETE FROM facts WHERE document_id = ? AND chunk_index = ?",
+                (document_id, chunk_index),
+            )
+            connection.execute(
+                "DELETE FROM failures WHERE document_id = ? AND chunk_index = ?",
+                (document_id, chunk_index),
+            )
+            connection.execute(
+                """
+                INSERT INTO chunk_runs(document_id, chunk_index, fingerprint, status)
+                VALUES (?, ?, ?, 'processing')
+                ON CONFLICT(document_id, chunk_index) DO UPDATE SET
+                    fingerprint = excluded.fingerprint,
+                    status = excluded.status,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (document_id, chunk_index, fingerprint),
+            )
+        return True
+
+    def finish_chunk(self, document_id: str, chunk_index: int, status: str) -> None:
+        if status not in {"complete", "rejected", "empty", "failed"}:
+            raise ValueError(f"Unsupported chunk status: {status}")
+        with self.connect() as connection:
+            connection.execute(
+                """
+                UPDATE chunk_runs
+                SET status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE document_id = ? AND chunk_index = ?
+                """,
+                (status, document_id, chunk_index),
+            )
+
+    def chunk_statuses(self, document_id: str, fingerprints: dict[int, str]) -> dict[int, str]:
+        if not fingerprints:
+            return {}
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT chunk_index, fingerprint, status FROM chunk_runs
+                WHERE document_id = ?
+                """,
+                (document_id,),
+            ).fetchall()
+        return {
+            row["chunk_index"]: row["status"]
+            for row in rows
+            if fingerprints.get(row["chunk_index"]) == row["fingerprint"]
+        }
 
     def documents(self) -> list[dict]:
         with self.connect() as connection:
@@ -272,6 +370,27 @@ class Store:
                     json.dumps(details or {}),
                 ),
             )
+
+    def failure_exists(
+        self,
+        document_id: str | None,
+        stage: str,
+        message: str,
+        *,
+        page_number: int | None = None,
+        chunk_index: int | None = None,
+    ) -> bool:
+        with self.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT 1 FROM failures
+                WHERE document_id IS ? AND stage = ? AND message = ?
+                  AND page_number IS ? AND chunk_index IS ?
+                LIMIT 1
+                """,
+                (document_id, stage, message, page_number, chunk_index),
+            ).fetchone()
+        return row is not None
 
     def facts(self) -> list[StoredFact]:
         with self.connect() as connection:

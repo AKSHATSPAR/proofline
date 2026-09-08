@@ -6,26 +6,36 @@ from pathlib import Path
 from proofline.schemas import StoredFact, StoredRelation
 from proofline.store import Store
 from proofline.text import evidence_context, verify_evidence
-from proofline.validation import validate_fact_semantics
+from proofline.validation import validate_fact_semantics, validate_relation_semantics
 
 DEMO_PATH = Path(__file__).parent / "examples" / "india_macroeconomy_demo.json"
+DEMO_DOCUMENT_IDS = {
+    "demo-economic-survey",
+    "demo-rbi-annual-report",
+    "demo-imf-article-iv",
+}
 
 
 def load_demo(store: Store, path: Path = DEMO_PATH) -> bool:
-    """Load source-verified sample output. Returns False when it was already present."""
+    """Load or repair the source-verified sample without duplicating its audit rows."""
 
     payload = json.loads(path.read_text())
-    if all(store.document_by_hash(item["sha256"]) for item in payload["documents"]):
-        return False
-
+    changed = False
     page_lookup: dict[tuple[str, int], str] = {}
+    document_ids: dict[str, str] = {}
     for document in payload["documents"]:
-        source_candidate = DEMO_PATH.parent / "sources" / Path(document["relative_source"]).name
+        source_candidate = path.parent / "sources" / Path(document["relative_source"]).name
         source_path = str(source_candidate) if source_candidate.exists() else None
         page_texts = [(item["page_number"], item["text"]) for item in document["pages"]]
         for page_number, text in page_texts:
             page_lookup[(document["id"], page_number)] = text
-        if store.document_by_hash(document["sha256"]) is None:
+        existing_id = store.document(document["id"])
+        if existing_id is not None and existing_id["sha256"] != document["sha256"]:
+            store.delete_document(document["id"])
+            existing_id = None
+            changed = True
+        existing_hash = store.document_by_hash(document["sha256"])
+        if existing_hash is None:
             store.add_document(
                 document["id"],
                 document["name"],
@@ -35,6 +45,10 @@ def load_demo(store: Store, path: Path = DEMO_PATH) -> bool:
                 source_path=source_path,
             )
             store.set_document_status(document["id"], "ready")
+            document_ids[document["id"]] = document["id"]
+            changed = True
+        else:
+            document_ids[document["id"]] = existing_hash["id"]
 
     for fact_payload in payload["facts"]:
         fact = StoredFact.model_validate(fact_payload)
@@ -53,14 +67,32 @@ def load_demo(store: Store, path: Path = DEMO_PATH) -> bool:
         if semantic_issues:
             codes = ", ".join(issue.code for issue in semantic_issues)
             raise ValueError(f"Demo fact {fact.id} failed semantic validation: {codes}")
-        store.add_fact(fact)
+        fact = fact.model_copy(update={"document_id": document_ids[fact.document_id]})
+        changed = store.add_fact(fact) or changed
 
+    facts_by_id = {fact.id: fact for fact in store.facts()}
     for relation_payload in payload["relations"]:
-        store.add_relation(StoredRelation.model_validate(relation_payload))
+        relation = StoredRelation.model_validate(relation_payload)
+        left = facts_by_id[relation.left_fact_id]
+        right = facts_by_id[relation.right_fact_id]
+        issues = validate_relation_semantics(left, right, relation)
+        if issues:
+            codes = ", ".join(issue.code for issue in issues)
+            raise ValueError(f"Demo relation {relation.id} failed semantic validation: {codes}")
+        store.add_relation(relation)
 
     for failure in payload["failures"]:
+        document_id = document_ids.get(failure["document_id"], failure["document_id"])
+        if store.failure_exists(
+            document_id,
+            failure["stage"],
+            failure["message"],
+            page_number=failure.get("page_number"),
+            chunk_index=failure.get("chunk_index"),
+        ):
+            continue
         store.add_failure(
-            failure["document_id"],
+            document_id,
             failure["stage"],
             failure["message"],
             page_number=failure.get("page_number"),
@@ -68,4 +100,5 @@ def load_demo(store: Store, path: Path = DEMO_PATH) -> bool:
             recoverable=failure["recoverable"],
             details=failure["details"],
         )
-    return True
+        changed = True
+    return changed

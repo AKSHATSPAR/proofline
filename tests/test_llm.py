@@ -146,3 +146,54 @@ def test_comparison_includes_bounded_source_context() -> None:
     assert "LEFT SOURCE CONTEXT" in sent
     assert "The consolidated table uses INR crore." in sent
     assert "RIGHT SOURCE CONTEXT" in sent
+
+
+def test_comparisons_are_batched_into_one_schema_constrained_request() -> None:
+    interactions = FakeInteractions(
+        {
+            "decisions": [
+                {
+                    "pair_index": 0,
+                    "relation_type": "unrelated",
+                    "confidence": 0.9,
+                    "explanation": "The supplied records are not materially comparable.",
+                    "decisive_context": ["different metrics"],
+                }
+            ]
+        }
+    )
+    extractor = GeminiExtractor(
+        model="gemini-test", client=SimpleNamespace(interactions=interactions)
+    )
+    payload = {
+        "document_name": "report.pdf",
+        "chunk_index": 0,
+        "subject": "Delhivery",
+        "predicate": "revenue",
+        "object_text": "100 crore",
+        "value_type": "number",
+        "value_number": 100,
+        "unit": "INR crore",
+        "normalized_value": 1000,
+        "normalized_unit": "INR million",
+        "period_start": "2023-04-01",
+        "period_end": "2024-03-31",
+        "as_of_date": None,
+        "scope": ["consolidated"],
+        "modality": "actual",
+        "comparison_key": "delhivery|revenue",
+        "evidence_quote": "Revenue was INR 100 crore in FY24.",
+        "page_number": 1,
+        "confidence": 0.9,
+        "extraction_note": None,
+        "evidence_status": "exact",
+        "extraction_method": "test",
+    }
+    left = StoredFact(id="left", document_id="left-doc", **payload)
+    right = StoredFact(id="right", document_id="right-doc", **payload)
+
+    result = extractor.compare_many([(left, right, "left context", "right context")])
+
+    assert result.decisions[0].pair_index == 0
+    assert interactions.request["response_format"]["schema"]["title"] == "RelationDecisionBatch"
+    assert '"pair_index": 0' in interactions.request["input"]

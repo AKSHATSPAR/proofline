@@ -56,6 +56,17 @@ _UNIT_TOKENS = {
     "usd",
 }
 
+_DOCUMENT_REFERENCE = re.compile(
+    r"\b(company|group|issuer|business|bank|fund|we|our|us|projected|forecast|estimated)\b",
+    re.IGNORECASE,
+)
+
+_EXCLUSIVE_SCOPE_GROUPS = (
+    ({"consolidated", "group"}, {"standalone", "separate", "parent"}),
+    ({"gaap"}, {"non gaap", "non-gaap", "adjusted"}),
+    ({"continuing operations"}, {"discontinued operations"}),
+)
+
 _MODALITY_PATTERNS = {
     Modality.FORECAST: re.compile(
         r"\b(project(?:ed|ion)?|forecast|expect(?:ed|s)?|outlook|guidance|anticipat(?:ed|es))\b",
@@ -114,6 +125,22 @@ def _currency(value: str | None) -> str | None:
     return None
 
 
+def _unit_dimensions(value: str | None) -> set[str]:
+    if not value:
+        return set()
+    kinds = _unit_kinds(value)
+    dimensions: set[str] = set()
+    currency = _currency(value)
+    if currency:
+        dimensions.add(currency)
+    if "percent" in kinds:
+        dimensions.add("percent")
+    if "ton" in kinds:
+        dimensions.add("ton")
+    dimensions.update(semantic_tokens(value) - _UNIT_TOKENS)
+    return dimensions
+
+
 def _reported_tolerance(fact: FactCandidate) -> float:
     if fact.value_number is None:
         return 0
@@ -145,19 +172,7 @@ def _canonical_numeric(fact: FactCandidate) -> tuple[float, str, float] | None:
         return None
 
     scale = _scale(unit) or 1
-    kinds = _unit_kinds(unit)
-    dimensions: list[str] = []
-    currency = _currency(unit)
-    if currency:
-        dimensions.append(currency)
-    if "percent" in kinds:
-        dimensions.append("percent")
-    if "ton" in kinds:
-        dimensions.append("ton")
-
-    residual = semantic_tokens(unit) - _UNIT_TOKENS
-    dimensions.extend(sorted(residual))
-    measure = "+".join(dict.fromkeys(dimensions)) or "scalar"
+    measure = "+".join(sorted(_unit_dimensions(unit))) or "scalar"
     return value * scale, measure, _reported_tolerance(fact)
 
 
@@ -171,6 +186,31 @@ def _entity_supported(expected: str, source: str) -> bool:
     ]
     acronym = "".join(word[0] for word in words).casefold()
     return len(acronym) >= 2 and acronym in semantic_tokens(source, entity=True)
+
+
+def _subject_supported(expected: str, source_context: str, document_name: str) -> bool:
+    if _entity_supported(expected, source_context):
+        return True
+    # A filename may resolve pronouns or generic issuer references, but it cannot
+    # turn an otherwise subjectless statement into a grounded fact by itself.
+    return bool(
+        document_name
+        and _entity_supported(expected, document_name)
+        and _DOCUMENT_REFERENCE.search(source_context)
+    )
+
+
+def _scope_conflicts(left_scope: list[str], right_scope: list[str]) -> bool:
+    left = " ".join(left_scope).casefold()
+    right = " ".join(right_scope).casefold()
+    for first, second in _EXCLUSIVE_SCOPE_GROUPS:
+        left_first = any(value in left for value in first)
+        left_second = any(value in left for value in second)
+        right_first = any(value in right for value in first)
+        right_second = any(value in right for value in second)
+        if (left_first and right_second) or (left_second and right_first):
+            return True
+    return False
 
 
 def _period_supported(start: str, end: str, quote: str) -> bool:
@@ -247,12 +287,12 @@ def validate_fact_semantics(
     quote = candidate.evidence_quote
     source_context = f"{quote} {support_text}".strip()
 
-    if not _entity_supported(candidate.subject, f"{source_context} {document_name}"):
+    if not _subject_supported(candidate.subject, source_context, document_name):
         issues.append(
             ValidationIssue(
                 "subject_not_in_evidence",
                 "subject",
-                "The subject is not supported by the evidence context or document name.",
+                "The subject is not supported by the evidence context or a document reference.",
             )
         )
 
@@ -323,6 +363,17 @@ def validate_fact_semantics(
                 "unit_not_in_evidence",
                 "unit",
                 f"The evidence quote does not show: {', '.join(sorted(missing_unit_kinds))}.",
+            )
+        )
+    unsupported_unit_tokens = (
+        semantic_tokens(candidate.unit or "") - _UNIT_TOKENS - semantic_tokens(quote)
+    )
+    if unsupported_unit_tokens:
+        issues.append(
+            ValidationIssue(
+                "unit_not_in_evidence",
+                "unit",
+                "The evidence quote does not support the stated unit.",
             )
         )
 
@@ -399,6 +450,14 @@ def validate_fact_semantics(
                     "Currency conversion is not supported by the deterministic validator.",
                 )
             )
+        if _unit_dimensions(candidate.unit) != _unit_dimensions(candidate.normalized_unit):
+            issues.append(
+                ValidationIssue(
+                    "incompatible_normalized_unit",
+                    "normalized_unit",
+                    "The normalized unit changes the measurement dimension.",
+                )
+            )
         source_scale = _scale(candidate.unit)
         normalized_scale = _scale(candidate.normalized_unit)
         if source_scale is not None and normalized_scale is not None:
@@ -427,6 +486,14 @@ def validate_relation_semantics(
         right.as_of_date,
     )
     same_modality = left.modality == right.modality
+    same_subject = _entity_supported(left.subject, right.subject) or _entity_supported(
+        right.subject, left.subject
+    )
+    same_metric = (
+        support_ratio(left.predicate, right.predicate) >= 0.5
+        and support_ratio(right.predicate, left.predicate) >= 0.5
+    )
+    scope_conflict = _scope_conflicts(left.scope, right.scope)
     left_numeric = _canonical_numeric(left)
     right_numeric = _canonical_numeric(right)
     comparable_numbers = bool(
@@ -443,6 +510,29 @@ def validate_relation_semantics(
         )
     )
 
+    if decision.relation_type != RelationType.UNRELATED and (not same_subject or not same_metric):
+        issues.append(
+            ValidationIssue(
+                "relation_identity_mismatch",
+                "relation_type",
+                "A material relationship requires compatible subjects and metrics.",
+            )
+        )
+
+    if (
+        decision.relation_type in {RelationType.CORROBORATES, RelationType.CONTRADICTS}
+        and left_numeric
+        and right_numeric
+        and not comparable_numbers
+    ):
+        issues.append(
+            ValidationIssue(
+                "relation_unit_mismatch",
+                "relation_type",
+                "Numeric corroboration or contradiction requires compatible units.",
+            )
+        )
+
     if (
         decision.relation_type == RelationType.CORROBORATES
         and comparable_numbers
@@ -456,13 +546,13 @@ def validate_relation_semantics(
             )
         )
     if decision.relation_type == RelationType.CORROBORATES and (
-        not same_period or not same_modality
+        not same_period or not same_modality or scope_conflict
     ):
         issues.append(
             ValidationIssue(
                 "corroboration_context_mismatch",
                 "relation_type",
-                "Corroboration requires the same period and modality.",
+                "Corroboration requires compatible period, modality, and scope.",
             )
         )
     if decision.relation_type == RelationType.CONTRADICTS:
@@ -474,12 +564,24 @@ def validate_relation_semantics(
                     "Equal normalized values cannot be a numeric contradiction.",
                 )
             )
-        if not same_period or not same_modality:
+        if not same_period or not same_modality or scope_conflict:
             issues.append(
                 ValidationIssue(
                     "contradiction_context_mismatch",
                     "relation_type",
-                    "A contradiction requires the same period and modality.",
+                    "A contradiction requires compatible period, modality, and scope.",
+                )
+            )
+    if decision.relation_type == RelationType.RECONCILES:
+        same_scope = {tuple(sorted(semantic_tokens(value))) for value in left.scope} == {
+            tuple(sorted(semantic_tokens(value))) for value in right.scope
+        }
+        if same_period and same_modality and same_scope and same_value:
+            issues.append(
+                ValidationIssue(
+                    "reconciliation_not_needed",
+                    "relation_type",
+                    "Equivalent facts should corroborate rather than reconcile.",
                 )
             )
     return issues

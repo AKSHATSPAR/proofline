@@ -8,8 +8,9 @@ from typing import Protocol
 
 from google import genai
 from openai import OpenAI
+from pydantic import BaseModel
 
-from proofline.schemas import FactBatch, RelationDecision, StoredFact
+from proofline.schemas import FactBatch, RelationDecision, RelationDecisionBatch, StoredFact
 
 DEFAULT_PROVIDER = "gemini"
 DEFAULT_MODELS = {
@@ -64,6 +65,14 @@ publication vintages may genuinely disagree if they target the same period; ment
 the decision using only fields and evidence supplied here. Do not claim access to the full source.
 """
 
+BATCH_RELATION_INSTRUCTIONS = f"""{RELATION_INSTRUCTIONS}
+
+The input contains a JSON array of indexed fact pairs. Return exactly one decision for every pair and
+copy its pair_index unchanged. Judge each pair independently. Never combine evidence across pairs.
+"""
+
+ComparisonInput = tuple[StoredFact, StoredFact, str, str]
+
 
 class Extractor(Protocol):
     provider: str
@@ -78,6 +87,31 @@ class Extractor(Protocol):
         left_context: str = "",
         right_context: str = "",
     ) -> RelationDecision: ...
+
+    def compare_many(self, pairs: list[ComparisonInput]) -> RelationDecisionBatch: ...
+
+
+def _fact_payload(fact: StoredFact) -> dict:
+    return fact.model_dump(
+        mode="json",
+        exclude={"id", "document_id", "chunk_index", "evidence_status", "extraction_method"},
+    )
+
+
+def _comparison_payload(pairs: list[ComparisonInput]) -> str:
+    return json.dumps(
+        [
+            {
+                "pair_index": index,
+                "left_fact": _fact_payload(left),
+                "left_source_context": left_context,
+                "right_fact": _fact_payload(right),
+                "right_source_context": right_context,
+            }
+            for index, (left, right, left_context, right_context) in enumerate(pairs)
+        ],
+        ensure_ascii=False,
+    )
 
 
 def provider_name(provider: str | None = None) -> str:
@@ -180,6 +214,13 @@ class GeminiExtractor:
             RelationDecision,
         )
 
+    def compare_many(self, pairs: list[ComparisonInput]) -> RelationDecisionBatch:
+        return self._structured(
+            BATCH_RELATION_INSTRUCTIONS,
+            f"BEGIN UNTRUSTED PAIRS\n{_comparison_payload(pairs)}\nEND UNTRUSTED PAIRS",
+            RelationDecisionBatch,
+        )
+
 
 class OpenAIExtractor:
     provider = "openai"
@@ -189,7 +230,7 @@ class OpenAIExtractor:
         self.client = client or OpenAI()
 
     @staticmethod
-    def _format(model_type: type[FactBatch | RelationDecision], name: str) -> dict:
+    def _format(model_type: type[BaseModel], name: str) -> dict:
         return {
             "type": "json_schema",
             "name": name,
@@ -238,3 +279,14 @@ class OpenAIExtractor:
             store=False,
         )
         return RelationDecision.model_validate(json.loads(response.output_text))
+
+    def compare_many(self, pairs: list[ComparisonInput]) -> RelationDecisionBatch:
+        response = self.client.responses.create(
+            model=self.model,
+            instructions=BATCH_RELATION_INSTRUCTIONS,
+            input=f"BEGIN UNTRUSTED PAIRS\n{_comparison_payload(pairs)}\nEND UNTRUSTED PAIRS",
+            reasoning={"effort": "low"},
+            text={"format": self._format(RelationDecisionBatch, "relation_decision_batch")},
+            store=False,
+        )
+        return RelationDecisionBatch.model_validate(json.loads(response.output_text))

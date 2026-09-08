@@ -15,10 +15,10 @@
         <span>Proofline</span>
       </a>
       <nav class="nav-tabs" aria-label="Knowledge layer views">
-        <button class="nav-tab active" data-view="relationships">Relationships</button>
-        <button class="nav-tab" data-view="facts">Facts</button>
-        <button class="nav-tab" data-view="documents">Documents</button>
-        <button class="nav-tab" data-view="diagnostics">Diagnostics</button>
+        <button class="nav-tab active" data-view="relationships" aria-pressed="true">Relationships</button>
+        <button class="nav-tab" data-view="facts" aria-pressed="false">Facts</button>
+        <button class="nav-tab" data-view="documents" aria-pressed="false">Documents</button>
+        <button class="nav-tab" data-view="diagnostics" aria-pressed="false">Diagnostics</button>
       </nav>
       <div class="top-actions">
         <a class="api-link" href="/docs" target="_blank" rel="noreferrer">API docs ↗</a>
@@ -29,7 +29,10 @@
     <main>
       <section class="hero">
         <div>
-          <p class="eyebrow">FACT KNOWLEDGE LAYER / INDIA MACROECONOMY</p>
+          <p class="eyebrow hero-eyebrow">
+            FACT KNOWLEDGE LAYER / INDIA MACROECONOMY
+            <span class="dataset-badge" id="datasetBadge">CURATED, SOURCE-VERIFIED SAMPLE</span>
+          </p>
           <h1>Every claim has a page.<br /><span>Every disagreement has a reason.</span></h1>
           <p class="hero-copy">
             Proofline turns dense PDFs into evidence-backed facts, then explains whether sources
@@ -39,7 +42,7 @@
         <div class="pipeline-card">
           <div class="pipeline-head">
             <span>Pipeline status</span>
-            <span class="live-dot"><i></i> Ready</span>
+            <span class="live-dot"><i></i><span id="datasetStatus">Curated review set</span></span>
           </div>
           <div class="pipeline-step done"><b>01</b><span>Page-aware extraction</span><em>Done</em></div>
           <div class="pipeline-step done"><b>02</b><span>Evidence validation</span><em>Done</em></div>
@@ -47,6 +50,7 @@
           <div class="quality-line"><span>Page evidence gate</span><strong>Fail closed</strong></div>
           <div class="quality-line field-quality"><span>Structured field checks</span><strong id="fieldCoverage">Checking…</strong></div>
           <div class="quality-line anchor-quality"><span>Word-level anchors</span><strong id="wordAnchorCoverage">Checking…</strong></div>
+          <p class="pipeline-note" id="datasetNote">These reviewed results are preloaded from the bundled source PDFs.</p>
         </div>
       </section>
 
@@ -77,7 +81,7 @@
         <div id="factsView" class="view">
           <div class="section-heading">
             <div><p class="eyebrow">FACT REGISTER</p><h2>Grounded claims</h2></div>
-            <label class="search"><span>⌕</span><input id="factSearch" type="search" placeholder="Search subject, metric, source..." /></label>
+            <label class="search"><span aria-hidden="true">⌕</span><input id="factSearch" type="search" aria-label="Search grounded facts" placeholder="Search subject, metric, source..." /></label>
           </div>
           <div class="table-shell">
             <table>
@@ -103,9 +107,9 @@
       </section>
     </main>
 
-    <dialog id="uploadDialog" class="modal">
+    <dialog id="uploadDialog" class="modal" aria-labelledby="uploadTitle">
       <form method="dialog" class="modal-card" id="uploadForm">
-        <div class="modal-head"><div><p class="eyebrow">INCREMENTAL INGESTION</p><h2>Add PDF sources</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></div>
+        <div class="modal-head"><div><p class="eyebrow">INCREMENTAL INGESTION</p><h2 id="uploadTitle">Add PDF sources</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></div>
         <p id="processingMode" class="mode-note"></p>
         <label class="drop-zone" id="dropZone">
           <input id="pdfFiles" type="file" accept="application/pdf,.pdf" multiple />
@@ -117,7 +121,7 @@
       </form>
     </dialog>
 
-    <dialog id="evidenceDialog" class="evidence-drawer">
+    <dialog id="evidenceDialog" class="evidence-drawer" aria-labelledby="evidenceTitle">
       <div class="drawer-card">
         <div class="drawer-head"><div><p class="eyebrow">SOURCE EVIDENCE</p><h2 id="evidenceTitle">Evidence</h2></div><button class="icon-button" id="closeEvidence" aria-label="Close">×</button></div>
         <div id="evidenceMeta" class="evidence-meta"></div>

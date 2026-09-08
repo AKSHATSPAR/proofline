@@ -83,6 +83,14 @@ class RelationDecision(StrictModel):
     decisive_context: list[str] = Field(min_length=1)
 
 
+class IndexedRelationDecision(RelationDecision):
+    pair_index: int = Field(ge=0, description="Zero-based index of the input pair")
+
+
+class RelationDecisionBatch(StrictModel):
+    decisions: list[IndexedRelationDecision]
+
+
 class Page(StrictModel):
     page_number: int
     text: str

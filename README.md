@@ -54,6 +54,9 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
+The same test, lint, formatting, and package-build checks run automatically on pushes and pull
+requests through GitHub Actions.
+
 ### Public demo deployment
 
 The live read-only demo is available at
@@ -126,8 +129,9 @@ Comparing every fact with every other fact quickly becomes wasteful. Proofline b
 index over normalized metric terms and retrieves only cross-document facts with compatible entity
 and metric signatures. A small alias set handles common variants such as turnover versus revenue
 and profit after tax versus net profit. This avoids a full all-pairs scan while keeping the required
-demo matches. The comparison step receives each fact plus a bounded window from its source page,
-then chooses one of four results:
+demo matches. Plausible pairs are sent together in one schema-constrained comparison request. Each
+pair keeps its own index and bounded source windows, so the response can still be checked one pair
+at a time. The comparison step chooses one of four results:
 
 - `corroborates`: materially the same claim after safe normalization;
 - `contradicts`: the same subject, metric, period, scope, and modality with incompatible values;
@@ -155,7 +159,9 @@ SQLite stores the documents, extracted page text, accepted facts, relationships,
 SHA-256 hash identifies each source file. Uploading the same PDF twice does not process it twice, and
 new documents add relationships without rebuilding the existing layer. Stored relationships and
 completed `unrelated` decisions are excluded before candidate limits are applied, which keeps older
-pairs from crowding out newly uploaded documents or being compared repeatedly.
+pairs from crowding out newly uploaded documents or being compared repeatedly. Each source chunk
+also has a versioned completion record. If a provider fails halfway through a document, the next run
+keeps completed chunks and retries only unfinished ones.
 
 ### API
 
@@ -181,8 +187,9 @@ pairs from crowding out newly uploaded documents or being compared repeatedly.
 - Highlights are created from the original PDF when the reviewer opens a fact. They are not citation
   coordinates invented by the model.
 - I use the PDF's actual page index because printed page numbers can jump inside curated excerpts.
-- Bounded chunks keep model requests manageable. File hashes prevent duplicate extraction, and
-  candidate filtering limits the number of fact pairs sent for comparison.
+- Bounded chunks keep model requests manageable. With the included starter files, the India set uses
+  14 extraction requests and the Delhivery set uses 18. Candidate pairs then share one comparison
+  request. File hashes prevent duplicate extraction.
 - Gemini is the default because its free tier makes the project easier to try. The OpenAI adapter is
   there for people who already have API billing.
 - Temporary provider errors are retried with bounded backoff, including the error type returned by
@@ -198,8 +205,8 @@ pairs from crowding out newly uploaded documents or being compared repeatedly.
 - Scanned PDFs need an OCR step before Proofline can read them.
 - The metric alias set is intentionally small. A larger collection would need a measured vocabulary
   expansion or a hybrid semantic index, with recall checked against labelled cross-document pairs.
-- Jobs run in one background process. A production version would need a durable queue, cancellation,
-  retries, and saved progress for each chunk.
+- Jobs run in one background process. Chunk progress survives a retry in SQLite, but a production
+  version would still need a durable queue, cancellation, and coordination across several workers.
 - The deterministic validator checks common numeric scales, currencies, dates, fiscal years, and
   fiscal quarters. Unusual accounting units and non-standard periods still need broader test data.
 - The held-out Delhivery run validates extraction and grounding on one complete presentation, but a

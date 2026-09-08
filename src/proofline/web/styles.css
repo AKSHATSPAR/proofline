@@ -122,6 +122,9 @@ main { width: min(1180px, 90vw); margin: 0 auto 80px; }
   letter-spacing: 0.16em;
 }
 
+.hero-eyebrow { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.dataset-badge { color: #3f624d; background: var(--mint); border-radius: 999px; padding: 5px 8px; letter-spacing: .08em; }
+
 h1, h2 { margin: 0; letter-spacing: -0.045em; }
 h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(46px, 5.2vw, 76px); line-height: 0.98; font-weight: 500; }
 h1 span { color: #5d6e65; }
@@ -164,6 +167,7 @@ h2 { font-size: clamp(26px, 3vw, 34px); line-height: 1.05; }
 .quality-line.field-quality strong { color: #3d659c; }
 .quality-line.anchor-quality { background: #fff1df; }
 .quality-line.anchor-quality strong { color: #985314; }
+.pipeline-note { margin: 12px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 
 .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid rgba(21, 39, 31, 0.14); border-radius: 16px; overflow: hidden; background: var(--card); }
 .metric { padding: 22px 24px; border-right: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; align-items: baseline; }
@@ -285,8 +289,9 @@ progress { width: 100%; height: 8px; accent-color: var(--lime-dark); }
 .loading-block, .empty-state { padding: 40px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; }
 
 @media (max-width: 900px) {
-  .topbar { grid-template-columns: 1fr auto; padding: 0 4vw; }
-  .nav-tabs { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 30; background: var(--ink); padding: 5px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+  body { padding-bottom: 70px; }
+  .topbar { grid-template-columns: 1fr auto; padding: 0 4vw; backdrop-filter: none; }
+  .nav-tabs { position: fixed; bottom: 14px; left: 50%; width: max-content; max-width: calc(100vw - 24px); transform: translateX(-50%); z-index: 30; overflow-x: auto; background: var(--ink); padding: 5px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
   .nav-tab { color: #bdc8c2; padding: 9px; font-size: 11px; }
   .nav-tab:hover, .nav-tab.active { color: white; background: rgba(255,255,255,.12); }
   .api-link { display: none; }
@@ -298,6 +303,7 @@ progress { width: 100%; height: 8px; accent-color: var(--lime-dark); }
   .relation-summary { grid-template-columns: 130px 1fr; }
   .confidence { display: none; }
   .failure-card { grid-template-columns: 1fr; }
+  .toast { bottom: 82px; }
 }
 
 @media (max-width: 620px) {

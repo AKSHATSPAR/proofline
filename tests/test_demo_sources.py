@@ -1,11 +1,13 @@
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
-from proofline.demo import DEMO_PATH
+from proofline.demo import DEMO_PATH, load_demo
 from proofline.relations import candidate_pairs
 from proofline.schemas import StoredFact
+from proofline.store import Store
 from proofline.text import extract_pages, verify_evidence
 
 
@@ -43,3 +45,22 @@ def test_candidate_retrieval_keeps_every_required_demo_relationship() -> None:
     }
 
     assert required <= retrieved
+
+
+def test_demo_document_hashes_are_the_real_source_hashes() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    payload = json.loads(DEMO_PATH.read_text())
+
+    for document in payload["documents"]:
+        source = project_root / document["relative_source"]
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == document["sha256"]
+
+
+def test_demo_loader_repairs_missing_rows_without_duplicating_failures(tmp_path: Path) -> None:
+    store = Store(tmp_path / "demo.db")
+
+    assert load_demo(store) is True
+    first_summary = store.summary()
+    assert load_demo(store) is False
+
+    assert store.summary() == first_summary

@@ -153,7 +153,7 @@ function openEvidence(factId) {
   const fact = state.facts.find((item) => item.id === factId);
   if (!fact) return;
   byId("evidenceTitle").textContent = `${fact.subject} · ${fact.predicate}`;
-  byId("evidenceMeta").innerHTML = [fact.document_name, `PDF page ${fact.page_number}`, periodLabel(fact), `${confidenceLabel(fact.confidence)} extraction signal`].map((item) => `<span>${esc(item)}</span>`).join("");
+  byId("evidenceMeta").innerHTML = [fact.document_name, `PDF page ${fact.page_number}`, periodLabel(fact), `${confidenceLabel(fact.confidence)} extraction signal`, `Method: ${fact.extraction_method}`].map((item) => `<span>${esc(item)}</span>`).join("");
   byId("evidenceQuote").textContent = `“${fact.evidence_quote}”`;
   byId("evidenceContext").innerHTML = `<strong>Context:</strong> ${esc(fact.extraction_note || fact.scope.join(" · "))}<br /><strong>Comparison key:</strong> ${esc(fact.comparison_key)} · evidence match: ${esc(fact.evidence_status)}`;
   byId("pdfFrameWrap").innerHTML = fact.source_available
@@ -175,6 +175,15 @@ async function refresh() {
     byId("wordAnchorCoverage").textContent = audit.source_available
       ? `${audit.word_anchored} / ${audit.source_available} located`
       : "Sources unavailable";
+    byId("datasetBadge").textContent = {
+      curated_source_verified: "CURATED, SOURCE-VERIFIED SAMPLE",
+      mixed: "CURATED SAMPLE + PROCESSED WORKSPACE",
+      workspace: "PROCESSED WORKSPACE",
+    }[config.dataset_origin] || "DATASET ORIGIN UNAVAILABLE";
+    byId("datasetStatus").textContent = config.demo_only ? "Curated review set" : "Workspace ready";
+    byId("datasetNote").textContent = config.demo_only
+      ? "These reviewed results are preloaded from the bundled source PDFs. Upload processing is available when the project runs locally."
+      : "Results shown here come from this workspace and retain their document, page, and extraction method.";
     byId("processingMode").className = `mode-note ${config.live_processing ? "" : "offline"}`;
     byId("processingMode").textContent = config.demo_only
       ? "This public demonstration is read only so a shared key cannot be exhausted. Clone the repository to process your own PDFs."
@@ -197,7 +206,11 @@ async function refresh() {
 }
 
 function switchView(name) {
-  document.querySelectorAll(".nav-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === name));
+  document.querySelectorAll(".nav-tab").forEach((tab) => {
+    const selected = tab.dataset.view === name;
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-pressed", selected);
+  });
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
 }
 

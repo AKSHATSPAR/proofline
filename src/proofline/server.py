@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from proofline.audit import grounding_audit
-from proofline.demo import DEMO_PATH, load_demo
+from proofline.demo import DEMO_DOCUMENT_IDS, DEMO_PATH, load_demo
 from proofline.llm import (
     create_extractor,
     provider_is_configured,
@@ -119,7 +119,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     load_dotenv()
     resolved_db = db_path or Path(os.getenv("PROOFLINE_DB_PATH", "data/proofline.db"))
     store = Store(resolved_db)
-    if store.summary()["documents"] == 0:
+    if _demo_only() or store.summary()["documents"] == 0:
         load_demo(store)
     jobs = JobManager()
 
@@ -156,6 +156,13 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     def config() -> dict:
         active_provider = provider_name()
         demo_only = _demo_only()
+        document_ids = {document["id"] for document in store.documents()}
+        if document_ids and document_ids <= DEMO_DOCUMENT_IDS:
+            dataset_origin = "curated_source_verified"
+        elif document_ids & DEMO_DOCUMENT_IDS:
+            dataset_origin = "mixed"
+        else:
+            dataset_origin = "workspace"
         return {
             "live_processing": not demo_only and provider_is_configured(active_provider),
             "demo_only": demo_only,
@@ -164,6 +171,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             "model": provider_model(active_provider),
             "max_upload_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
             "demo_name": "India macroeconomy",
+            "dataset_origin": dataset_origin,
         }
 
     @app.get("/api/summary")

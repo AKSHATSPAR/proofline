@@ -106,6 +106,43 @@ def test_fact_semantics_reject_unsupported_identity_scope_and_comparison_key() -
     }
 
 
+def test_filename_alone_cannot_supply_a_missing_subject() -> None:
+    issues = validate_fact_semantics(
+        candidate(
+            subject="Acme",
+            predicate="revenue",
+            object_text="10 percent",
+            value_number=10,
+            unit="percent",
+            normalized_value=10,
+            normalized_unit="percent",
+            period_start=None,
+            period_end=None,
+            scope=[],
+            comparison_key="acme|revenue",
+            evidence_quote="Revenue was 10 percent during the reported period.",
+        ),
+        document_name="acme.pdf",
+    )
+
+    assert "subject_not_in_evidence" in {issue.code for issue in issues}
+
+
+def test_fact_semantics_rejects_unquoted_and_incompatible_units() -> None:
+    unquoted = validate_fact_semantics(
+        candidate(unit="bananas", normalized_value=None, normalized_unit=None)
+    )
+    changed_dimension = validate_fact_semantics(
+        candidate(normalized_value=8142, normalized_unit="USD million")
+    )
+
+    assert "unit_not_in_evidence" in {issue.code for issue in unquoted}
+    assert {issue.code for issue in changed_dimension} >= {
+        "currency_conversion_not_allowed",
+        "incompatible_normalized_unit",
+    }
+
+
 def test_relation_semantics_catches_impossible_numeric_labels() -> None:
     left = stored("left", 6.5)
     right = stored("right", 6.6)
@@ -209,3 +246,37 @@ def test_relation_semantics_allows_rounding_at_the_coarser_reported_precision() 
     )
 
     assert validate_relation_semantics(annual_report, presentation, corroboration) == []
+
+
+def test_relation_semantics_rejects_incompatible_scope_and_units() -> None:
+    left = stored("left", 6.5).model_copy(update={"scope": ["consolidated"]})
+    right_scope = stored("right-scope", 6.5).model_copy(update={"scope": ["standalone"]})
+    right_unit = stored("right-unit", 6.5).model_copy(
+        update={"unit": "tonnes", "normalized_unit": "tonnes"}
+    )
+    corroboration = RelationDecision(
+        relation_type="corroborates",
+        confidence=0.9,
+        explanation="The two records appear to report the same metric and value.",
+        decisive_context=["same reported value"],
+    )
+
+    assert "corroboration_context_mismatch" in {
+        issue.code for issue in validate_relation_semantics(left, right_scope, corroboration)
+    }
+    assert "relation_unit_mismatch" in {
+        issue.code for issue in validate_relation_semantics(left, right_unit, corroboration)
+    }
+
+
+def test_relation_semantics_rejects_an_unnecessary_reconciliation() -> None:
+    reconciliation = RelationDecision(
+        relation_type="reconciles",
+        confidence=0.9,
+        explanation="The values are identical and there is no contextual difference.",
+        decisive_context=["same value"],
+    )
+
+    issues = validate_relation_semantics(stored("left", 6.5), stored("right", 6.5), reconciliation)
+
+    assert "reconciliation_not_needed" in {issue.code for issue in issues}

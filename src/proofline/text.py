@@ -51,7 +51,7 @@ def _split_long_page(page: Page, max_chars: int, overlap_chars: int) -> Iterable
 
 
 def build_chunks(
-    pages: list[Page], max_chars: int = 14_000, overlap_chars: int = 800
+    pages: list[Page], max_chars: int = 60_000, overlap_chars: int = 1_500
 ) -> list[TextChunk]:
     """Create page-labelled chunks without allowing provenance to drift."""
 
