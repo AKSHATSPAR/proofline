@@ -11,15 +11,20 @@ from proofline.schemas import RelationType, StoredFact, StoredRelation
 from proofline.store import Store
 from proofline.text import (
     build_chunks,
+    document_identity_context,
     evidence_context,
     extract_pages,
     normalize_whitespace,
     verify_evidence,
 )
-from proofline.validation import validate_fact_semantics, validate_relation_semantics
+from proofline.validation import (
+    repair_optional_fact_fields,
+    validate_fact_semantics,
+    validate_relation_semantics,
+)
 
 ProgressCallback = Callable[[str, int, int], None]
-CHUNK_PIPELINE_REVISION = "fact-grounding-v2"
+CHUNK_PIPELINE_REVISION = "layout-grounding-v3"
 
 
 @dataclass(frozen=True)
@@ -65,6 +70,7 @@ class KnowledgeLayer:
         document_id = existing["id"] if existing is not None else sha256[:16]
         pages = extract_pages(pdf_path)
         page_lookup = {page.page_number: page.text for page in pages}
+        identity_context = document_identity_context(pages)
         if existing is None:
             self.store.add_document(
                 document_id,
@@ -165,29 +171,50 @@ class KnowledgeLayer:
                         )
                         continue
 
+                    support_text = evidence_context(
+                        page_lookup[candidate.page_number], candidate.evidence_quote
+                    )
                     semantic_issues = validate_fact_semantics(
                         candidate,
-                        support_text=evidence_context(
-                            page_lookup[candidate.page_number], candidate.evidence_quote
-                        ),
+                        support_text=support_text,
                         document_name=pdf_path.name,
+                        document_context=identity_context,
                     )
                     if semantic_issues:
-                        facts_rejected += 1
-                        self.store.add_failure(
-                            document_id,
-                            "fact_validation",
-                            "Structured fields were not supported by the evidence quote",
-                            page_number=candidate.page_number,
-                            chunk_index=chunk.index,
-                            details={
-                                "comparison_key": candidate.comparison_key,
-                                "quote": candidate.evidence_quote,
-                                "candidate": candidate.model_dump(mode="json"),
-                                "issues": [issue.payload() for issue in semantic_issues],
-                            },
+                        repaired, repairs = repair_optional_fact_fields(
+                            candidate,
+                            support_text=support_text,
+                            document_name=pdf_path.name,
+                            document_context=identity_context,
                         )
-                        continue
+                        repaired_issues = validate_fact_semantics(
+                            repaired,
+                            support_text=support_text,
+                            document_name=pdf_path.name,
+                            document_context=identity_context,
+                        )
+                        if repairs and not repaired_issues:
+                            candidate = repaired
+                        else:
+                            facts_rejected += 1
+                            self.store.add_failure(
+                                document_id,
+                                "fact_validation",
+                                "Structured fields were not supported by the evidence quote",
+                                page_number=candidate.page_number,
+                                chunk_index=chunk.index,
+                                details={
+                                    "comparison_key": candidate.comparison_key,
+                                    "quote": candidate.evidence_quote,
+                                    "candidate": candidate.model_dump(mode="json"),
+                                    "issues": [issue.payload() for issue in semantic_issues],
+                                    "attempted_repairs": repairs,
+                                    "remaining_issues": [
+                                        issue.payload() for issue in repaired_issues
+                                    ],
+                                },
+                            )
+                            continue
 
                     fact_id = hashlib.sha256(
                         (

@@ -180,6 +180,7 @@ async function refresh() {
       mixed: "CURATED SAMPLE + PROCESSED WORKSPACE",
       workspace: "PROCESSED WORKSPACE",
     }[config.dataset_origin] || "DATASET ORIGIN UNAVAILABLE";
+    byId("datasetName").textContent = config.dataset_name.toUpperCase();
     byId("datasetStatus").textContent = config.demo_only ? "Curated review set" : "Workspace ready";
     byId("datasetNote").textContent = config.demo_only
       ? "These reviewed results are preloaded from the bundled source PDFs. Upload processing is available when the project runs locally."

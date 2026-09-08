@@ -21,6 +21,7 @@ _UNIT_PATTERNS = {
     "inr": re.compile(r"₹|\binr\b|\brs\.?\b|\brupees?\b", re.IGNORECASE),
     "usd": re.compile(r"\busd\b|\bus\s+dollars?\b|\bdollars?\b|\$", re.IGNORECASE),
     "ton": re.compile(r"\btonnes?\b|\btons?\b", re.IGNORECASE),
+    "multiple": re.compile(r"(?<=\d)x\b|\btimes\b", re.IGNORECASE),
 }
 
 _SCALE = {
@@ -52,8 +53,10 @@ _UNIT_TOKENS = {
     "thousand",
     "ton",
     "tonne",
+    "times",
     "us",
     "usd",
+    "x",
 }
 
 _DOCUMENT_REFERENCE = re.compile(
@@ -188,8 +191,19 @@ def _entity_supported(expected: str, source: str) -> bool:
     return len(acronym) >= 2 and acronym in semantic_tokens(source, entity=True)
 
 
-def _subject_supported(expected: str, source_context: str, document_name: str) -> bool:
+def _subject_supported(
+    expected: str,
+    source_context: str,
+    document_name: str,
+    document_context: str,
+) -> bool:
     if _entity_supported(expected, source_context):
+        return True
+    if (
+        document_context
+        and _entity_supported(expected, document_name)
+        and _entity_supported(expected, document_context)
+    ):
         return True
     # A filename may resolve pronouns or generic issuer references, but it cannot
     # turn an otherwise subjectless statement into a grounded fact by itself.
@@ -280,6 +294,7 @@ def validate_fact_semantics(
     *,
     support_text: str = "",
     document_name: str = "",
+    document_context: str = "",
 ) -> list[ValidationIssue]:
     """Check structured fields that can be proven directly from the evidence quote."""
 
@@ -287,7 +302,12 @@ def validate_fact_semantics(
     quote = candidate.evidence_quote
     source_context = f"{quote} {support_text}".strip()
 
-    if not _subject_supported(candidate.subject, source_context, document_name):
+    if not _subject_supported(
+        candidate.subject,
+        source_context,
+        document_name,
+        document_context,
+    ):
         issues.append(
             ValidationIssue(
                 "subject_not_in_evidence",
@@ -472,6 +492,67 @@ def validate_fact_semantics(
                 )
 
     return issues
+
+
+def repair_optional_fact_fields(
+    candidate: FactCandidate,
+    *,
+    support_text: str = "",
+    document_name: str = "",
+    document_context: str = "",
+) -> tuple[FactCandidate, list[str]]:
+    """Remove only unsupported optional fields, then leave full validation to the caller.
+
+    The subject, predicate, object, numeric value, unit, comparison identity, and evidence quote
+    are never rewritten. This recovers a smaller grounded fact from a partly over-specified
+    candidate without inventing information.
+    """
+
+    source_context = f"{candidate.evidence_quote} {support_text}".strip()
+    updates: dict[str, object] = {}
+    changes: list[str] = []
+
+    supported_scope = [
+        item for item in candidate.scope if support_ratio(item, source_context) >= 0.5
+    ]
+    if supported_scope != candidate.scope:
+        removed = [item for item in candidate.scope if item not in supported_scope]
+        updates["scope"] = supported_scope
+        changes.append(f"unsupported scope ({', '.join(removed)})")
+
+    issues = validate_fact_semantics(
+        candidate,
+        support_text=support_text,
+        document_name=document_name,
+        document_context=document_context,
+    )
+    issue_codes = {issue.code for issue in issues}
+
+    if issue_codes & {"incomplete_period", "period_not_in_evidence"}:
+        updates["period_start"] = None
+        updates["period_end"] = None
+        changes.append("unsupported period")
+    if "date_not_in_evidence" in issue_codes:
+        updates["as_of_date"] = None
+        changes.append("unsupported as-of date")
+    if issue_codes & {
+        "incomplete_normalization",
+        "currency_conversion_not_allowed",
+        "incompatible_normalized_unit",
+        "invalid_unit_conversion",
+    }:
+        updates["normalized_value"] = None
+        updates["normalized_unit"] = None
+        changes.append("unsupported normalization")
+
+    if not updates:
+        return candidate, []
+
+    note = "Deterministic repair removed " + ", ".join(changes) + "."
+    if candidate.extraction_note:
+        note = f"{candidate.extraction_note.rstrip()} {note}"
+    updates["extraction_note"] = note
+    return candidate.model_copy(update=updates), changes
 
 
 def validate_relation_semantics(

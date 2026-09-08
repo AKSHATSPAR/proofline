@@ -1,7 +1,13 @@
 import pymupdf
 
 from proofline.schemas import Page
-from proofline.text import build_chunks, evidence_context, locate_evidence_rects, verify_evidence
+from proofline.text import (
+    build_chunks,
+    evidence_context,
+    extract_pages,
+    locate_evidence_rects,
+    verify_evidence,
+)
 
 
 def test_chunks_keep_page_labels_and_bounds() -> None:
@@ -85,3 +91,30 @@ def test_evidence_context_returns_a_bounded_window_around_the_quote() -> None:
     assert context.endswith(" ...")
     assert "Revenue was INR 8,142 crore in FY24." in context
     assert len(context) < len(page)
+
+
+def test_table_layout_context_preserves_headers_without_becoming_evidence(tmp_path) -> None:
+    path = tmp_path / "table.pdf"
+    document = pymupdf.open()
+    page = document.new_page(width=500, height=300)
+    for y in (60, 100, 140):
+        page.draw_line((50, y), (450, y))
+    for x in (50, 250, 350, 450):
+        page.draw_line((x, 60), (x, 140))
+    page.insert_text((60, 85), "Metric")
+    page.insert_text((260, 85), "Mar 23")
+    page.insert_text((360, 85), "Mar 24")
+    page.insert_text((60, 125), "Revenue")
+    page.insert_text((275, 125), "100")
+    page.insert_text((375, 125), "120")
+    document.save(path)
+    document.close()
+
+    extracted = extract_pages(path)[0]
+
+    assert "[[LAYOUT_TABLE_CONTEXT - INTERPRETATION ONLY]]" in extracted.analysis_text
+    assert "Metric | Mar 23 | Mar 24" in extracted.analysis_text
+    assert "Revenue | 100 | 120" in extracted.analysis_text
+    assert "[[LAYOUT_TABLE_CONTEXT" not in extracted.text
+    assert verify_evidence("Revenue | 100 | 120", extracted.text) == (False, "not_found")
+    assert "Metric | Mar 23 | Mar 24" in build_chunks([extracted])[0].text

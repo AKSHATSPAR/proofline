@@ -163,6 +163,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             dataset_origin = "mixed"
         else:
             dataset_origin = "workspace"
+        dataset_name = {
+            "curated_source_verified": "India macroeconomy",
+            "mixed": "Mixed document workspace",
+            "workspace": "Document workspace",
+        }[dataset_origin]
         return {
             "live_processing": not demo_only and provider_is_configured(active_provider),
             "demo_only": demo_only,
@@ -170,7 +175,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             "credential": provider_key_name(active_provider),
             "model": provider_model(active_provider),
             "max_upload_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
-            "demo_name": "India macroeconomy",
+            "dataset_name": dataset_name,
             "dataset_origin": dataset_origin,
         }
 

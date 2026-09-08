@@ -92,10 +92,11 @@ the outline is in [`docs/demo-script.md`](docs/demo-script.md).
 ```text
 PDF upload
    -> content hash / incremental skip
-   -> page-separated PyMuPDF extraction
+   -> page-separated text and layout-aware table extraction
    -> page-labelled, bounded chunks
    -> structured fact discovery
    -> verbatim evidence gate
+   -> bounded repair of unsupported optional fields
    -> deterministic field validation
    -> word-level source anchoring
    -> SQLite fact register
@@ -122,6 +123,17 @@ goes to Diagnostics with the rejected candidate and field-level reasons.
 For facts that pass, Proofline finds the quote's coordinates and highlights the words in the source
 page. A small word-sequence fallback handles PDF quirks such as superscript footnote numbers. This
 may miss a few valid facts, but I prefer a visible omission to a claim that cannot be checked.
+
+Ruled tables also get a bounded row-and-column view from PyMuPDF's table detector. That view helps
+associate values with headers, but it is interpretation context only. A generated table row cannot
+pass as evidence unless the quoted words are also present in the ordinary page text.
+
+The extraction step sometimes finds a valid core claim and then adds an unsupported optional scope,
+date, period, or unit conversion. Rejecting the whole claim made recall depend on these optional
+fields. Proofline now removes only unsupported optional metadata and runs the complete validator
+again. It never
+rewrites the subject, metric, object, reported number, unit, comparison key, or quote. Every repair
+is stored in the fact's extraction note and shown in the evidence drawer.
 
 ### Cross-document comparison
 
@@ -199,9 +211,10 @@ keeps completed chunks and retries only unfinished ones.
 
 ## Limitations and Next Steps
 
-- Dense tables are the clearest weak spot. Multi-column prose usually works, but plain extracted text
-  can lose the connection between a table header and its value. The demo keeps one such failure in
-  Diagnostics instead of guessing.
+- Ruled tables now receive layout-aware row and column context, and the held-out presentation test
+  recovered 29 grounded facts. Borderless tables, tables split across pages, and ambiguous merged
+  headers can still lose the connection between a label and its value. The demo keeps one such
+  failure in Diagnostics instead of guessing.
 - Scanned PDFs need an OCR step before Proofline can read them.
 - The metric alias set is intentionally small. A larger collection would need a measured vocabulary
   expansion or a hybrid semantic index, with recall checked against labelled cross-document pairs.
@@ -209,9 +222,9 @@ keeps completed chunks and retries only unfinished ones.
   version would still need a durable queue, cancellation, and coordination across several workers.
 - The deterministic validator checks common numeric scales, currencies, dates, fiscal years, and
   fiscal quarters. Unusual accounting units and non-standard periods still need broader test data.
-- The held-out Delhivery run validates extraction and grounding on one complete presentation, but a
-  labelled multi-document relationship benchmark is still needed to measure retrieval recall and
-  relationship precision beyond the checked India macroeconomy example.
+- The held-out Delhivery run validates extraction and grounding on one complete presentation and a
+  resumable multi-document pass. A larger labelled relationship set is still needed to measure
+  retrieval recall and relationship precision beyond the checked examples.
 - The public demonstration bundles only its three public institutional excerpts. Locally uploaded
   PDFs stay on that machine. A real multi-tenant service would need encrypted object storage,
   retention settings, tenant isolation, and deletion workflows.

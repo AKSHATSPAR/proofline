@@ -22,8 +22,19 @@ def grounding_audit(store: Store) -> dict:
 
     with ExitStack() as stack:
         open_documents: dict[str, pymupdf.Document] = {}
+        identity_contexts: dict[str, str] = {}
         for fact in facts:
             page_text = store.page_text(fact.document_id, fact.page_number)
+            if fact.document_id not in identity_contexts:
+                identity_contexts[fact.document_id] = "\n".join(
+                    filter(
+                        None,
+                        (
+                            store.page_text(fact.document_id, page_number)
+                            for page_number in range(1, 4)
+                        ),
+                    )
+                )[:4_000]
             valid, _ = verify_evidence(fact.evidence_quote, page_text or "")
             page_grounded += int(valid)
             fields_grounded += int(
@@ -31,6 +42,7 @@ def grounding_audit(store: Store) -> dict:
                     fact,
                     support_text=evidence_context(page_text or "", fact.evidence_quote),
                     document_name=fact.document_name,
+                    document_context=identity_contexts[fact.document_id],
                 )
             )
 

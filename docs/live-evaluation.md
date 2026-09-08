@@ -139,3 +139,28 @@ returned 12 candidates, but every one lacked enough contiguous support for its s
 the pipeline accepted none of them. This is intentionally visible as a `rejected` document. Better
 layout-aware table extraction or a labelled review set could improve recall without weakening the
 evidence gate.
+
+## Layout-aware follow-up
+
+I addressed that limitation on 2026-09-09 in a fresh database. Pages now keep two separate views:
+ordinary page text for evidence checks, and a bounded row-and-column view from PyMuPDF for
+interpreting ruled tables. Generated table text is never accepted as a source quote.
+
+I also changed the all-or-nothing candidate policy. When the core claim is grounded but optional
+scope, period, date, or normalization fields are not, Proofline removes only those optional fields
+and validates the smaller claim again. It never rewrites the subject, metric, object, reported
+number, unit, comparison key, or evidence quote. The repair is recorded in the fact's extraction
+note.
+
+Running the complete 27-page earnings presentation through this version with the free
+`gemini-3.5-flash-lite` model produced:
+
+- 29 accepted facts, up from zero in the immediately preceding strict run;
+- 0 candidates left rejected;
+- 29 of 29 facts passing page grounding and structured field validation;
+- 29 of 29 facts located at word level in the original PDF; and
+- accepted facts from the FY24 summary, Q4 FY24 summary, and key operating metrics table.
+
+I rendered and checked the three source slides manually. The stored figures match the visible FY24
+and Q4 FY24 values. This is a precision-preserving recall improvement, not a relaxed quote check.
+Borderless tables, merged headers, and tables split across pages remain open cases.

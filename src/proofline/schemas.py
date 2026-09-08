@@ -94,6 +94,7 @@ class RelationDecisionBatch(StrictModel):
 class Page(StrictModel):
     page_number: int
     text: str
+    analysis_text: str | None = None
 
 
 class TextChunk(StrictModel):

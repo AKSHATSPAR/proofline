@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from proofline.server import create_app
+from proofline.store import Store
 
 
 def test_demo_exposes_all_required_cases(tmp_path: Path) -> None:
@@ -24,7 +25,9 @@ def test_demo_exposes_all_required_cases(tmp_path: Path) -> None:
             "reconciles": 1,
         },
     }
-    assert client.get("/api/config").json()["dataset_origin"] == "curated_source_verified"
+    config = client.get("/api/config").json()
+    assert config["dataset_origin"] == "curated_source_verified"
+    assert config["dataset_name"] == "India macroeconomy"
     assert {item["relation_type"] for item in relations} == {
         "corroborates",
         "contradicts",
@@ -89,3 +92,16 @@ def test_public_demo_stays_read_only_even_when_a_key_exists(tmp_path: Path, monk
     assert upload.status_code == 403
     assert "read only" in upload.json()["detail"]
     assert demo_mutation.status_code == 403
+
+
+def test_processed_documents_use_a_generic_workspace_name(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("PROOFLINE_DEMO_ONLY", raising=False)
+    path = tmp_path / "workspace.db"
+    store = Store(path)
+    store.add_document("document-1", "company-report.pdf", "hash-1", [(1, "Company report")])
+    store.set_document_status("document-1", "ready")
+
+    config = TestClient(create_app(path)).get("/api/config").json()
+
+    assert config["dataset_origin"] == "workspace"
+    assert config["dataset_name"] == "Document workspace"

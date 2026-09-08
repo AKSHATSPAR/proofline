@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -10,12 +12,48 @@ from proofline.schemas import Page, TextChunk
 
 _WHITESPACE = re.compile(r"\s+")
 _SUPERSCRIPT_DIGITS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
+_MAX_TABLE_CONTEXT_CHARS = 12_000
 
 
 def normalize_whitespace(value: str) -> str:
     # PDF engines disagree on whether footnote glyphs are emitted as plain or
     # superscript digits. Treat those glyph variants as the same source text.
     return _WHITESPACE.sub(" ", value.translate(_SUPERSCRIPT_DIGITS)).strip()
+
+
+def _layout_table_context(pdf_page: pymupdf.Page) -> str:
+    """Return a bounded, deterministic table view for interpretation only.
+
+    The ordinary page text remains the sole source accepted by the evidence gate.
+    This view only helps the extractor associate row values with visible headers.
+    """
+
+    rendered_tables: list[str] = []
+    try:
+        # PyMuPDF prints an optional layout-package notice directly to the console.
+        # The built-in detector is intentional here, so keep command output focused
+        # on document progress and actual failures.
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            tables = pdf_page.find_tables().tables
+    except (AttributeError, RuntimeError, ValueError):
+        return ""
+
+    for table_index, table in enumerate(tables, start=1):
+        rows = table.extract()
+        if table.row_count < 2 or table.col_count < 2 or not rows:
+            continue
+        rendered_rows = []
+        for row in rows:
+            cells = [normalize_whitespace(cell or "") for cell in row]
+            if any(cells):
+                rendered_rows.append(" | ".join(cells))
+        if len(rendered_rows) < 2:
+            continue
+        rendered_tables.append(f"[[TABLE {table_index}]]\n" + "\n".join(rendered_rows))
+
+    if not rendered_tables:
+        return ""
+    return "\n\n".join(rendered_tables)[:_MAX_TABLE_CONTEXT_CHARS]
 
 
 def extract_pages(pdf_path: Path) -> list[Page]:
@@ -27,12 +65,27 @@ def extract_pages(pdf_path: Path) -> list[Page]:
             # Preserve the PDF content stream's reading order. Coordinate sorting often
             # interleaves rows from adjacent columns, breaking otherwise verbatim evidence.
             text = pdf_page.get_text("text", sort=False)
-            pages.append(Page(page_number=index + 1, text=text))
+            table_context = _layout_table_context(pdf_page)
+            analysis_text = text
+            if table_context:
+                analysis_text = (
+                    f"{text.rstrip()}\n\n"
+                    "[[LAYOUT_TABLE_CONTEXT - INTERPRETATION ONLY]]\n"
+                    f"{table_context}\n"
+                    "[[END_LAYOUT_TABLE_CONTEXT]]"
+                )
+            pages.append(
+                Page(
+                    page_number=index + 1,
+                    text=text,
+                    analysis_text=analysis_text,
+                )
+            )
     return pages
 
 
 def _split_long_page(page: Page, max_chars: int, overlap_chars: int) -> Iterable[str]:
-    text = page.text.strip()
+    text = (page.analysis_text or page.text).strip()
     if len(text) <= max_chars:
         yield text
         return
@@ -84,6 +137,13 @@ def build_chunks(
                 flush()
     flush()
     return chunks
+
+
+def document_identity_context(pages: list[Page], max_chars: int = 4_000) -> str:
+    """Collect a small source-backed identity window from the document opening."""
+
+    context = "\n".join(page.text for page in pages[:3] if normalize_whitespace(page.text))
+    return context[:max_chars]
 
 
 def verify_evidence(quote: str, page_text: str) -> tuple[bool, str]:

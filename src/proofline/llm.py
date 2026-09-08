@@ -32,6 +32,8 @@ Rules:
 - Copy evidence_quote verbatim from exactly one labelled PDF page. Include enough nearby words to
   disambiguate the number or statement. Never repair OCR or invent wording in the quote.
 - page_number must match the [[PDF_PAGE N]] label containing the quote.
+- A page may end with LAYOUT_TABLE_CONTEXT generated from visible table cells. Use it to associate
+  row values with column headers, but never copy that generated context into evidence_quote.
 - Every non-null numeric value, unit, period, and date must be supported inside evidence_quote.
   Include nearby period or table labels when they are part of the same contiguous extracted text.
   Modality may be inferred from grammar, but it must not conflict with the quote. If a table value

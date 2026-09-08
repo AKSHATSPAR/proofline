@@ -68,6 +68,34 @@ class UnsupportedFactExtractor(FakeExtractor):
         return FactBatch(facts=[fact])
 
 
+class RepairableFactExtractor(FakeExtractor):
+    def extract(self, document_name: str, chunk_text: str) -> FactBatch:
+        return FactBatch(
+            facts=[
+                FactCandidate(
+                    subject="Delhivery",
+                    predicate="revenue from customers",
+                    object_text="INR 8,142 crore",
+                    value_type="number",
+                    value_number=8142,
+                    unit="INR crore",
+                    normalized_value=81_420,
+                    normalized_unit="INR crore",
+                    period_start="2023-04-01",
+                    period_end="2024-03-31",
+                    as_of_date=None,
+                    scope=["consolidated"],
+                    modality="actual",
+                    comparison_key="delhivery|revenue from customers",
+                    evidence_quote="Revenue from customers was INR 8,142 crore in FY24.",
+                    page_number=2,
+                    confidence=0.92,
+                    extraction_note=None,
+                )
+            ]
+        )
+
+
 class NoCallExtractor(FakeExtractor):
     def extract(self, document_name: str, chunk_text: str) -> FactBatch:
         raise AssertionError("A blank page must not be sent for extraction")
@@ -176,6 +204,16 @@ def make_two_fact_pdf(path: Path) -> None:
     document.close()
 
 
+def make_front_matter_pdf(path: Path) -> None:
+    document = pymupdf.open()
+    title_page = document.new_page()
+    title_page.insert_text((72, 72), "Delhivery Limited investor presentation")
+    fact_page = document.new_page()
+    fact_page.insert_text((72, 72), "Revenue from customers was INR 8,142 crore in FY24.")
+    document.save(path)
+    document.close()
+
+
 def test_ingestion_is_grounded_and_incremental(tmp_path: Path) -> None:
     pdf_path = tmp_path / "annual-report.pdf"
     make_pdf(pdf_path)
@@ -252,6 +290,28 @@ def test_ingestion_rejects_structured_meaning_not_supported_by_quote(tmp_path: P
         "number_not_in_evidence",
         "period_not_in_evidence",
     }
+
+
+def test_ingestion_repairs_only_optional_unsupported_fields(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "delhivery-results.pdf"
+    make_front_matter_pdf(pdf_path)
+    store = Store(tmp_path / "proofline.db")
+
+    result = KnowledgeLayer(store, RepairableFactExtractor()).ingest_pdf(pdf_path)
+
+    assert result.status == "ready"
+    assert result.facts_added == 1
+    assert result.facts_rejected == 0
+    fact = store.facts()[0]
+    assert fact.subject == "Delhivery"
+    assert fact.object_text == "INR 8,142 crore"
+    assert fact.value_number == 8142
+    assert fact.scope == []
+    assert fact.normalized_value is None
+    assert fact.normalized_unit is None
+    assert fact.extraction_note == (
+        "Deterministic repair removed unsupported scope (consolidated), unsupported normalization."
+    )
 
 
 def test_blank_pdf_page_is_reported_as_unreadable(tmp_path: Path) -> None:

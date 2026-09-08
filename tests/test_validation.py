@@ -1,5 +1,9 @@
 from proofline.schemas import FactCandidate, RelationDecision, StoredFact
-from proofline.validation import validate_fact_semantics, validate_relation_semantics
+from proofline.validation import (
+    repair_optional_fact_fields,
+    validate_fact_semantics,
+    validate_relation_semantics,
+)
 
 
 def candidate(**updates) -> FactCandidate:
@@ -144,6 +148,64 @@ def test_filename_alone_cannot_supply_a_missing_subject() -> None:
     assert "subject_not_in_evidence" in {issue.code for issue in issues}
 
 
+def test_document_front_matter_can_ground_subject_identity() -> None:
+    fact = candidate(
+        predicate="revenue",
+        object_text="10 percent",
+        value_number=10,
+        unit="percent",
+        normalized_value=10,
+        normalized_unit="percent",
+        period_start=None,
+        period_end=None,
+        scope=[],
+        comparison_key="delhivery|revenue",
+        evidence_quote="Revenue was 10 percent during the reported period.",
+    )
+
+    issues = validate_fact_semantics(
+        fact,
+        document_name="delhivery-results.pdf",
+        document_context="Delhivery Limited investor presentation",
+    )
+
+    assert "subject_not_in_evidence" not in {issue.code for issue in issues}
+
+
+def test_optional_field_repair_keeps_core_claim_unchanged() -> None:
+    fact = candidate(
+        normalized_value=81_420,
+        normalized_unit="INR crore",
+        scope=["consolidated", "FY24"],
+        evidence_quote="Revenue from customers was INR 8,142 crore in FY24.",
+    )
+
+    repaired, changes = repair_optional_fact_fields(
+        fact,
+        document_name="delhivery-results.pdf",
+        document_context="Delhivery Limited investor presentation",
+    )
+
+    assert repaired.subject == fact.subject
+    assert repaired.predicate == fact.predicate
+    assert repaired.object_text == fact.object_text
+    assert repaired.value_number == fact.value_number
+    assert repaired.unit == fact.unit
+    assert repaired.evidence_quote == fact.evidence_quote
+    assert repaired.scope == ["FY24"]
+    assert repaired.normalized_value is None
+    assert repaired.normalized_unit is None
+    assert changes == ["unsupported scope (consolidated)", "unsupported normalization"]
+    assert (
+        validate_fact_semantics(
+            repaired,
+            document_name="delhivery-results.pdf",
+            document_context="Delhivery Limited investor presentation",
+        )
+        == []
+    )
+
+
 def test_fact_semantics_rejects_unquoted_and_incompatible_units() -> None:
     unquoted = validate_fact_semantics(
         candidate(unit="bananas", normalized_value=None, normalized_unit=None)
@@ -157,6 +219,24 @@ def test_fact_semantics_rejects_unquoted_and_incompatible_units() -> None:
         "currency_conversion_not_allowed",
         "incompatible_normalized_unit",
     }
+
+
+def test_fact_semantics_accepts_a_reported_ratio_multiple() -> None:
+    fact = candidate(
+        predicate="debt to equity",
+        object_text="0.01x",
+        value_number=0.01,
+        unit="x",
+        normalized_value=0.01,
+        normalized_unit="x",
+        period_start=None,
+        period_end=None,
+        scope=[],
+        comparison_key="delhivery|debt to equity",
+        evidence_quote="Delhivery's Debt to Equity was 0.01x at the reporting date.",
+    )
+
+    assert validate_fact_semantics(fact) == []
 
 
 def test_relation_semantics_catches_impossible_numeric_labels() -> None:
