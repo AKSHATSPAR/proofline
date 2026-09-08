@@ -154,7 +154,9 @@ Before a relationship is stored, deterministic guardrails reject impossible nume
 example, two equal values cannot be called a contradiction, and different comparable values cannot
 be called corroboration. The comparison works with normalized values when supplied and safely falls
 back to compatible raw units. It also respects the precision shown by each source, so a value rounded
-to crore can agree with a more precise value in million without making 6.5% equal to 6.6%.
+to crore can agree with a more precise value in million without making 6.5% equal to 6.6%. Numerical
+corroboration or contradiction also requires an explicit matching period or date. Two missing dates
+are treated as unknown, not as a match.
 
 ### Required cases in the included demo
 
@@ -163,7 +165,7 @@ to crore can agree with a more precise value in million without making 6.5% equa
 | Corroboration | RBI Annual Report p. 8 and IMF Article IV p. 3 | Both report FY2024/25 real GDP growth of 6.5%. |
 | Likely contradiction | RBI Annual Report p. 17 and IMF Article IV p. 3 | FY2025/26 forecasts differ: 6.5% versus 6.6%. |
 | Reconciliation | Economic Survey p. 4 and RBI Annual Report p. 8 | 6.4% is the First Advance Estimate; 6.5% is the later Second Advance Estimate. |
-| Failure | IMF Article IV p. 5 | Decimal values in a dense table split across lines, so the candidate is quarantined until layout-aware header binding is available. |
+| Failure | IMF Article IV p. 5 | A borderless table split decimal values across lines, so the year-to-value binding remains ambiguous and the candidate is quarantined. |
 
 ### Storage and incremental behavior
 

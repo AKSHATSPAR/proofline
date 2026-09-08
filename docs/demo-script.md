@@ -38,12 +38,14 @@ revision rather than a direct contradiction.
 
 ## 2:20-2:40 - Failure handling
 
-Open **Diagnostics**. Show the IMF table value whose decimal was split across lines. Proofline could
-not safely tell which year owned the value, so it kept the candidate out of the fact table.
+Open **Diagnostics**. Show the IMF borderless-table value whose decimal was split across lines.
+Proofline could not safely tell which year owned the value, so it kept the candidate out of the fact
+table.
 
 ## 2:40-2:50 - Close
 
 Open **Facts** briefly, then point out the FastAPI docs and the local SQLite database.
 
-“The main gap is dense tables and scanned PDFs. For the documents it can read, the full loop is
-working: discover a fact, check its evidence, compare it with other sources, and explain the result.”
+“The main gaps are borderless or multi-page tables and scanned PDFs. For the documents it can read,
+the full loop is working: discover a fact, check its evidence, compare it with other sources, and
+explain the result.”

@@ -269,6 +269,21 @@ def test_relation_semantics_rejects_corroboration_across_periods() -> None:
     assert [issue.code for issue in issues] == ["corroboration_context_mismatch"]
 
 
+def test_relation_semantics_does_not_treat_two_missing_numeric_periods_as_equal() -> None:
+    left = stored("left", 6.5).model_copy(update={"period_start": None, "period_end": None})
+    right = stored("right", 6.6).model_copy(update={"period_start": None, "period_end": None})
+    contradiction = RelationDecision(
+        relation_type="contradicts",
+        confidence=0.9,
+        explanation="The values differ, but neither claim has a grounded reporting period.",
+        decisive_context=["reporting period unavailable"],
+    )
+
+    issues = validate_relation_semantics(left, right, contradiction)
+
+    assert "contradiction_context_mismatch" in {issue.code for issue in issues}
+
+
 def test_relation_semantics_compares_raw_values_when_normalized_values_are_missing() -> None:
     left = stored("left", 6.5).model_copy(
         update={"normalized_value": None, "normalized_unit": None}

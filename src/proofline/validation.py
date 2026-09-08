@@ -561,11 +561,14 @@ def validate_relation_semantics(
     """Reject relation labels that conflict with deterministic numeric or temporal fields."""
 
     issues: list[ValidationIssue] = []
-    same_period = (left.period_start, left.period_end, left.as_of_date) == (
+    left_period = (left.period_start, left.period_end, left.as_of_date)
+    right_period = (
         right.period_start,
         right.period_end,
         right.as_of_date,
     )
+    numerical_claim = left.value_type == "number" or right.value_type == "number"
+    same_period = left_period == right_period and (not numerical_claim or any(left_period))
     same_modality = left.modality == right.modality
     same_subject = _entity_supported(left.subject, right.subject) or _entity_supported(
         right.subject, left.subject

@@ -7,6 +7,7 @@ const state = {
   failures: [],
   audit: null,
   relationFilter: "all",
+  viewInitialized: false,
 };
 
 const byId = (id) => document.getElementById(id);
@@ -34,6 +35,10 @@ function periodLabel(fact) {
     if (end === start + 1 && fact.period_start.endsWith("04-01")) return `FY${start}/${String(end).slice(2)}`;
     return `${fact.period_start} to ${fact.period_end}`;
   }
+  const scopedPeriod = fact.scope
+    .map((item) => item.match(/\bQ[1-4]\s+FY\s?\d{2,4}\b|\bFY\s?\d{2,4}(?:[/-]\d{2,4})?\b/i)?.[0])
+    .find(Boolean);
+  if (scopedPeriod) return scopedPeriod;
   return "Period not explicit";
 }
 
@@ -45,6 +50,43 @@ function confidenceLabel(value) {
   if (value >= 0.85) return "High";
   if (value >= 0.65) return "Medium";
   return "Low";
+}
+
+function diagnosticValue(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value !== "object") return String(value);
+  if (Array.isArray(value)) return value.map(diagnosticValue).filter(Boolean).join("; ");
+
+  const claim = [value.subject, value.predicate, value.object_text].filter(Boolean).join(" · ");
+  if (claim) return claim;
+  return JSON.stringify(value);
+}
+
+function diagnosticIssues(details) {
+  const issues = details.remaining_issues?.length ? details.remaining_issues : details.issues;
+  if (!Array.isArray(issues)) return "";
+  return issues.map((issue) => {
+    if (typeof issue !== "object" || issue === null) return String(issue);
+    return issue.message || [issue.code, issue.field].filter(Boolean).join(": ") || JSON.stringify(issue);
+  }).join(" ");
+}
+
+function diagnosticRow(label, value) {
+  const text = diagnosticValue(value);
+  return text ? `<dt>${esc(label)}</dt><dd>${esc(text)}</dd>` : "";
+}
+
+function visibleScope(fact) {
+  const predicate = fact.predicate.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return fact.scope.filter((item) => {
+    const normalized = item.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    return normalized && !predicate.includes(normalized);
+  });
+}
+
+function scopeNote(fact) {
+  const scope = visibleScope(fact);
+  return scope.length ? `<span class="td-sub">${esc(scope.join(" · "))}</span>` : "";
 }
 
 function normalizedValueNote(fact) {
@@ -107,7 +149,7 @@ function renderFacts() {
   const facts = state.facts.filter((fact) => [fact.subject, fact.predicate, fact.object_text, fact.document_name, ...fact.scope].join(" ").toLowerCase().includes(query));
   byId("factsTable").innerHTML = facts.map((fact) => `
     <tr>
-      <td><button class="fact-link" data-evidence="${esc(fact.id)}">${esc(fact.subject)} · ${esc(fact.predicate)}</button><span class="td-sub">${esc(fact.scope.join(" · "))}</span></td>
+      <td><button class="fact-link" data-evidence="${esc(fact.id)}">${esc(fact.subject)} · ${esc(fact.predicate)}</button>${scopeNote(fact)}</td>
       <td><strong>${esc(fact.object_text)}</strong>${normalizedValueNote(fact)}</td>
       <td>${esc(periodLabel(fact))}<span class="td-sub">${esc(fact.modality)}</span></td>
       <td>${esc(shortName(fact.document_name))}<span class="td-sub">PDF page ${fact.page_number}</span></td>
@@ -121,7 +163,7 @@ function renderDocuments() {
     <article class="document-card">
       <div class="doc-icon">PDF</div>
       <h3>${esc(document.name)}</h3>
-      <div class="document-meta"><span>${document.page_count} pages</span><span>·</span><span>${document.fact_count} grounded facts</span><span>·</span><span>${esc(document.status)}</span></div>
+      <div class="document-meta"><span>${document.page_count} ${document.page_count === 1 ? "page" : "pages"}</span><span>·</span><span>${document.fact_count} grounded ${document.fact_count === 1 ? "fact" : "facts"}</span><span>·</span><span>${esc(document.status)}</span></div>
       <div class="source-status ${document.source_available ? "" : "unavailable"}">${document.source_available ? "● Original PDF available for page review" : "○ Sample evidence retained; PDF not bundled"}</div>
     </article>`).join("");
 }
@@ -134,10 +176,16 @@ function renderFailures() {
   }
   list.innerHTML = state.failures.map((failure) => {
     const details = failure.details || {};
+    const issueSummary = diagnosticIssues(details);
     return `
       <article class="failure-card">
         <div><span class="failure-tag">${esc(failure.stage.replaceAll("_", " "))} · PDF p. ${esc(failure.page_number || "-")}</span><h3>${esc(failure.message)}</h3><p>${esc(details.handling || "The candidate was retained as a diagnostic and excluded from accepted facts.")}</p></div>
-        <div class="failure-details"><dl><dt>Candidate</dt><dd>${esc(details.candidate || "-")}</dd><dt>Raw fragment</dt><dd>${esc(details.extracted_fragment || "-")}</dd><dt>Next step</dt><dd>${esc(details.next_step || "Inspect and retry with improved parsing.")}</dd></dl></div>
+        <div class="failure-details"><dl>
+          ${diagnosticRow("Candidate", details.candidate)}
+          ${diagnosticRow("Source text", details.extracted_fragment || details.quote)}
+          ${diagnosticRow("Validation", issueSummary)}
+          ${diagnosticRow("Next step", details.next_step || "Inspect and retry with improved parsing.")}
+        </dl></div>
       </article>`;
   }).join("");
 }
@@ -191,6 +239,8 @@ async function refresh() {
       : config.live_processing
         ? `Live processing is enabled with ${config.provider}/${config.model}. Files are processed incrementally in the background.`
         : `Curated demo mode is active. Set ${config.credential} in .env and restart the server to process new PDFs.`;
+    byId("openUpload").textContent = config.demo_only ? "Use your PDFs" : "Add PDFs";
+    byId("uploadTitle").textContent = config.demo_only ? "Process PDFs locally" : "Add PDF sources";
     byId("pdfFiles").disabled = config.demo_only;
     byId("dropZone").classList.toggle("disabled", config.demo_only);
     byId("dropTitle").textContent = config.demo_only
@@ -199,8 +249,26 @@ async function refresh() {
     byId("dropHint").textContent = config.demo_only
       ? "Clone the repository and follow its setup instructions to process new documents."
       : "Up to 50 MB each. Existing files are skipped by content hash.";
-    byId("processFiles").textContent = config.demo_only ? "Available locally" : "Process PDFs";
+    byId("publicSetupLink").classList.toggle("hidden", !config.demo_only);
+    byId("processFiles").classList.toggle("hidden", config.demo_only);
+    byId("processFiles").textContent = "Process PDFs";
     byId("processFiles").disabled = !config.live_processing;
+
+    if (!state.viewInitialized) {
+      const preferredView = relations.length
+        ? "relationships"
+        : facts.length
+          ? "facts"
+          : failures.length
+            ? "diagnostics"
+            : documents.length
+              ? "documents"
+              : null;
+      if (preferredView) {
+        switchView(preferredView);
+        state.viewInitialized = true;
+      }
+    }
   } catch (error) {
     showToast(error.message);
   }
@@ -268,7 +336,10 @@ async function processUploads() {
   }
 }
 
-document.querySelectorAll(".nav-tab").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+document.querySelectorAll(".nav-tab").forEach((tab) => tab.addEventListener("click", () => {
+  state.viewInitialized = true;
+  switchView(tab.dataset.view);
+}));
 document.querySelectorAll("#relationFilters .filter").forEach((button) => button.addEventListener("click", () => {
   state.relationFilter = button.dataset.filter;
   document.querySelectorAll("#relationFilters .filter").forEach((item) => item.classList.toggle("active", item === button));

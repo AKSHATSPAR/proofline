@@ -117,7 +117,11 @@
         </label>
         <div id="selectedFiles" class="selected-files"></div>
         <div id="jobProgress" class="job-progress hidden"><div><span id="jobMessage">Preparing...</span><b id="jobPercent">0%</b></div><progress id="jobBar" max="100" value="0"></progress></div>
-        <div class="modal-actions"><button class="button ghost" value="cancel">Cancel</button><button class="button primary" id="processFiles" type="button">Process PDFs</button></div>
+        <div class="modal-actions">
+          <button class="button ghost" value="cancel">Cancel</button>
+          <a class="button primary hidden" id="publicSetupLink" href="https://github.com/AKSHATSPAR/proofline#setup-and-run-instructions" target="_blank" rel="noreferrer">Open setup guide ↗</a>
+          <button class="button primary" id="processFiles" type="button">Process PDFs</button>
+        </div>
       </form>
     </dialog>
 

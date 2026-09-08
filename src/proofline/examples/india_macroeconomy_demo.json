@@ -241,13 +241,13 @@
       "stage": "table_header_binding",
       "page_number": 5,
       "chunk_index": 1,
-      "message": "Skipped a plausible merchandise-exports fact because the PDF text layer split decimal values across lines, making year-to-value binding unsafe.",
+      "message": "Skipped a plausible merchandise-exports fact because a borderless table split decimal values across lines, making year-to-value binding unsafe.",
       "recoverable": true,
       "details": {
         "candidate": "Merchandise exports were USD 456.1 billion in FY2022/23",
         "extracted_fragment": "Merchandise exports ... 429.2 456. 1 441. 4 441. 8 416. 3 409.5",
         "handling": "Fail closed: keep the page and diagnostic, but do not promote the candidate into the fact layer.",
-        "next_step": "Use layout coordinates or a table parser to bind cells to column headers before retrying extraction."
+        "next_step": "Add borderless-table or coordinate-based header binding, then rerun the same evidence checks."
       }
     }
   ]
