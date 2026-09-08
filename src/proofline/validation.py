@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import date
 
 from proofline.schemas import FactCandidate, Modality, RelationDecision, RelationType, StoredFact
+from proofline.semantics import semantic_tokens, support_ratio
 
 _PAREN_NUMBER = re.compile(r"\(\s*(\d[\d,]*(?:\.\d+)?)\s*%?\)")
 _PLAIN_NUMBER = re.compile(r"(?<![A-Za-z])[-+−]?\s*\d[\d,]*(?:\.\d+)?")
@@ -29,6 +30,30 @@ _SCALE = {
     "million": 1_000_000,
     "thousand": 1_000,
     "percent": 1,
+}
+
+_UNIT_TOKENS = {
+    "billion",
+    "bn",
+    "cent",
+    "cr",
+    "crore",
+    "dollar",
+    "inr",
+    "k",
+    "lac",
+    "lakh",
+    "million",
+    "mn",
+    "per",
+    "percent",
+    "rs",
+    "rupee",
+    "thousand",
+    "ton",
+    "tonne",
+    "us",
+    "usd",
 }
 
 _MODALITY_PATTERNS = {
@@ -87,6 +112,65 @@ def _currency(value: str | None) -> str | None:
     if "usd" in kinds:
         return "usd"
     return None
+
+
+def _reported_tolerance(fact: FactCandidate) -> float:
+    if fact.value_number is None:
+        return 0
+
+    candidates: list[tuple[float, str]] = []
+    for match in _PAREN_NUMBER.finditer(fact.object_text):
+        candidates.append((-float(match.group(1).replace(",", "")), match.group(1)))
+    without_parenthesized = _PAREN_NUMBER.sub(" ", fact.object_text)
+    for match in _PLAIN_NUMBER.finditer(without_parenthesized):
+        token = match.group(0).replace(",", "").replace("−", "-").replace(" ", "")
+        candidates.append((float(token), token))
+
+    for value, token in candidates:
+        if not math.isclose(value, fact.value_number, rel_tol=1e-9, abs_tol=1e-9):
+            continue
+        decimals = len(token.rsplit(".", 1)[1]) if "." in token else 0
+        return 0.5 * (10 ** (-decimals)) * (_scale(fact.unit) or 1)
+    return 0
+
+
+def _canonical_numeric(fact: FactCandidate) -> tuple[float, str, float] | None:
+    if fact.normalized_value is not None and fact.normalized_unit:
+        value = fact.normalized_value
+        unit = fact.normalized_unit
+    elif fact.value_number is not None:
+        value = fact.value_number
+        unit = fact.unit or ""
+    else:
+        return None
+
+    scale = _scale(unit) or 1
+    kinds = _unit_kinds(unit)
+    dimensions: list[str] = []
+    currency = _currency(unit)
+    if currency:
+        dimensions.append(currency)
+    if "percent" in kinds:
+        dimensions.append("percent")
+    if "ton" in kinds:
+        dimensions.append("ton")
+
+    residual = semantic_tokens(unit) - _UNIT_TOKENS
+    dimensions.extend(sorted(residual))
+    measure = "+".join(dict.fromkeys(dimensions)) or "scalar"
+    return value * scale, measure, _reported_tolerance(fact)
+
+
+def _entity_supported(expected: str, source: str) -> bool:
+    if support_ratio(expected, source, entity=True) >= 0.5:
+        return True
+    words = [
+        token
+        for token in re.findall(r"[A-Za-z0-9]+", expected)
+        if token.casefold() not in {"and", "of", "the"}
+    ]
+    acronym = "".join(word[0] for word in words).casefold()
+    return len(acronym) >= 2 and acronym in semantic_tokens(source, entity=True)
 
 
 def _period_supported(start: str, end: str, quote: str) -> bool:
@@ -151,11 +235,66 @@ def _date_supported(value: str, quote: str) -> bool:
     return any(form in compact or form in quote.casefold() for form in forms)
 
 
-def validate_fact_semantics(candidate: FactCandidate) -> list[ValidationIssue]:
+def validate_fact_semantics(
+    candidate: FactCandidate,
+    *,
+    support_text: str = "",
+    document_name: str = "",
+) -> list[ValidationIssue]:
     """Check structured fields that can be proven directly from the evidence quote."""
 
     issues: list[ValidationIssue] = []
     quote = candidate.evidence_quote
+    source_context = f"{quote} {support_text}".strip()
+
+    if not _entity_supported(candidate.subject, f"{source_context} {document_name}"):
+        issues.append(
+            ValidationIssue(
+                "subject_not_in_evidence",
+                "subject",
+                "The subject is not supported by the evidence context or document name.",
+            )
+        )
+
+    if support_ratio(candidate.predicate, source_context) < 0.5:
+        issues.append(
+            ValidationIssue(
+                "predicate_not_in_evidence",
+                "predicate",
+                "The predicate is not supported by the evidence context.",
+            )
+        )
+
+    if candidate.value_type != "number" and support_ratio(candidate.object_text, quote) < 0.75:
+        issues.append(
+            ValidationIssue(
+                "object_not_in_evidence",
+                "object_text",
+                "The fact object is not supported by the evidence quote.",
+            )
+        )
+
+    for scope_item in candidate.scope:
+        if support_ratio(scope_item, source_context) < 0.5:
+            issues.append(
+                ValidationIssue(
+                    "scope_not_in_evidence",
+                    "scope",
+                    f"The scope qualifier is not supported by the evidence context: {scope_item}.",
+                )
+            )
+
+    key_text = candidate.comparison_key.replace("|", " ")
+    key_supports_subject = _entity_supported(candidate.subject, key_text)
+    key_supports_predicate = support_ratio(candidate.predicate, key_text) >= 0.5
+    if not key_supports_subject or not key_supports_predicate:
+        issues.append(
+            ValidationIssue(
+                "comparison_key_mismatch",
+                "comparison_key",
+                "The comparison key is inconsistent with the fact subject or predicate.",
+            )
+        )
 
     if candidate.value_type == "number":
         if candidate.value_number is None:
@@ -288,16 +427,20 @@ def validate_relation_semantics(
         right.as_of_date,
     )
     same_modality = left.modality == right.modality
-    comparable_numbers = (
-        left.normalized_value is not None
-        and right.normalized_value is not None
-        and left.normalized_unit == right.normalized_unit
+    left_numeric = _canonical_numeric(left)
+    right_numeric = _canonical_numeric(right)
+    comparable_numbers = bool(
+        left_numeric and right_numeric and left_numeric[1] == right_numeric[1]
     )
-    same_value = comparable_numbers and math.isclose(
-        left.normalized_value or 0,
-        right.normalized_value or 0,
-        rel_tol=1e-6,
-        abs_tol=1e-9,
+    same_value = bool(
+        comparable_numbers
+        and left_numeric
+        and right_numeric
+        and (
+            math.isclose(left_numeric[0], right_numeric[0], rel_tol=1e-6, abs_tol=1e-9)
+            or abs(left_numeric[0] - right_numeric[0])
+            <= max(left_numeric[2], right_numeric[2]) + 1e-9
+        )
     )
 
     if (

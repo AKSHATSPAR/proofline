@@ -156,7 +156,13 @@ class KnowledgeLayer:
                         )
                         continue
 
-                    semantic_issues = validate_fact_semantics(candidate)
+                    semantic_issues = validate_fact_semantics(
+                        candidate,
+                        support_text=evidence_context(
+                            page_lookup[candidate.page_number], candidate.evidence_quote
+                        ),
+                        document_name=pdf_path.name,
+                    )
                     if semantic_issues:
                         facts_rejected += 1
                         self.store.add_failure(
@@ -231,11 +237,10 @@ class KnowledgeLayer:
             tuple(sorted((relation.left_fact_id, relation.right_fact_id)))
             for relation in self.store.relations()
         }
+        completed = existing | self.store.checked_relation_pairs()
         added = 0
-        for left_id, right_id in candidate_pairs(facts)[:max_pairs]:
+        for left_id, right_id in candidate_pairs(facts, excluded_pairs=completed)[:max_pairs]:
             ordered = tuple(sorted((left_id, right_id)))
-            if ordered in existing:
-                continue
             left = facts_by_id[left_id]
             right = facts_by_id[right_id]
             left_context = evidence_context(
@@ -264,6 +269,7 @@ class KnowledgeLayer:
                 continue
             semantic_issues = validate_relation_semantics(left, right, decision)
             if semantic_issues:
+                self.store.mark_relation_checked(left_id, right_id, "rejected")
                 self.store.add_failure(
                     None,
                     "relation_validation",
@@ -277,6 +283,7 @@ class KnowledgeLayer:
                 )
                 continue
             if decision.relation_type == RelationType.UNRELATED:
+                self.store.mark_relation_checked(left_id, right_id, "unrelated")
                 continue
             relation_id = hashlib.sha256(f"{left_id}|{right_id}".encode()).hexdigest()[:20]
             self.store.add_relation(
@@ -288,5 +295,6 @@ class KnowledgeLayer:
                 )
             )
             existing.add(ordered)
+            completed.add(ordered)
             added += 1
         return added

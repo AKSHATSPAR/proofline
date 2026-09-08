@@ -18,7 +18,9 @@ def candidate(**updates) -> FactCandidate:
         "scope": ["consolidated"],
         "modality": "actual",
         "comparison_key": "delhivery|revenue from customers",
-        "evidence_quote": "Revenue from customers was INR 8,142 crore in FY24.",
+        "evidence_quote": (
+            "Delhivery's consolidated revenue from customers was INR 8,142 crore in FY24."
+        ),
         "page_number": 1,
         "confidence": 0.98,
         "extraction_note": None,
@@ -85,6 +87,25 @@ def test_fact_semantics_reject_bad_normalization_and_unsupported_date() -> None:
     }
 
 
+def test_fact_semantics_reject_unsupported_identity_scope_and_comparison_key() -> None:
+    issues = validate_fact_semantics(
+        candidate(
+            subject="Acme",
+            predicate="employee headcount",
+            scope=["Europe"],
+            comparison_key="unrelated|profit after tax",
+        ),
+        document_name="delhivery-annual-report.pdf",
+    )
+
+    assert {issue.code for issue in issues} >= {
+        "subject_not_in_evidence",
+        "predicate_not_in_evidence",
+        "scope_not_in_evidence",
+        "comparison_key_mismatch",
+    }
+
+
 def test_relation_semantics_catches_impossible_numeric_labels() -> None:
     left = stored("left", 6.5)
     right = stored("right", 6.6)
@@ -113,3 +134,78 @@ def test_relation_semantics_rejects_corroboration_across_periods() -> None:
     issues = validate_relation_semantics(left, right, corroboration)
 
     assert [issue.code for issue in issues] == ["corroboration_context_mismatch"]
+
+
+def test_relation_semantics_compares_raw_values_when_normalized_values_are_missing() -> None:
+    left = stored("left", 6.5).model_copy(
+        update={"normalized_value": None, "normalized_unit": None}
+    )
+    right = stored("right", 6.6).model_copy(
+        update={"normalized_value": None, "normalized_unit": None}
+    )
+    corroboration = RelationDecision(
+        relation_type="corroborates",
+        confidence=0.9,
+        explanation="Both sources report the same value.",
+        decisive_context=["same metric"],
+    )
+
+    issues = validate_relation_semantics(left, right, corroboration)
+
+    assert [issue.code for issue in issues] == ["corroboration_value_conflict"]
+
+
+def test_relation_semantics_compares_compatible_scaled_units() -> None:
+    left = stored("left", 1.0).model_copy(
+        update={
+            "value_number": 1,
+            "unit": "INR crore",
+            "normalized_value": None,
+            "normalized_unit": None,
+        }
+    )
+    right = stored("right", 10.0).model_copy(
+        update={
+            "value_number": 10,
+            "unit": "INR million",
+            "normalized_value": None,
+            "normalized_unit": None,
+        }
+    )
+    corroboration = RelationDecision(
+        relation_type="corroborates",
+        confidence=0.9,
+        explanation="Both sources report the same value in compatible units.",
+        decisive_context=["equivalent scale"],
+    )
+
+    assert validate_relation_semantics(left, right, corroboration) == []
+
+
+def test_relation_semantics_allows_rounding_at_the_coarser_reported_precision() -> None:
+    annual_report = stored("annual", 81_415.38).model_copy(
+        update={
+            "object_text": "INR 81,415.38 million",
+            "value_number": 81_415.38,
+            "unit": "INR million",
+            "normalized_value": None,
+            "normalized_unit": None,
+        }
+    )
+    presentation = stored("presentation", 8_142).model_copy(
+        update={
+            "object_text": "INR 8,142 crore",
+            "value_number": 8_142,
+            "unit": "INR crore",
+            "normalized_value": None,
+            "normalized_unit": None,
+        }
+    )
+    corroboration = RelationDecision(
+        relation_type="corroborates",
+        confidence=0.9,
+        explanation="The presentation rounds the annual report value to the nearest crore.",
+        decisive_context=["rounding precision"],
+    )
+
+    assert validate_relation_semantics(annual_report, presentation, corroboration) == []

@@ -6,7 +6,7 @@ from pathlib import Path
 import pymupdf
 
 from proofline.store import Store
-from proofline.text import locate_evidence_rects, verify_evidence
+from proofline.text import evidence_context, locate_evidence_rects, verify_evidence
 from proofline.validation import validate_fact_semantics
 
 
@@ -26,7 +26,13 @@ def grounding_audit(store: Store) -> dict:
             page_text = store.page_text(fact.document_id, fact.page_number)
             valid, _ = verify_evidence(fact.evidence_quote, page_text or "")
             page_grounded += int(valid)
-            fields_grounded += int(not validate_fact_semantics(fact))
+            fields_grounded += int(
+                not validate_fact_semantics(
+                    fact,
+                    support_text=evidence_context(page_text or "", fact.evidence_quote),
+                    document_name=fact.document_name,
+                )
+            )
 
             document = store.document(fact.document_id)
             source_path = (

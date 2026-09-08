@@ -74,3 +74,15 @@ The model gave every accepted candidate a confidence of `1.0`. The evidence stil
 independent check, but that confidence is clearly not a calibrated probability. The interface now
 uses high, medium, and low review signals instead of percentages. A labelled extraction set is still
 needed before treating the underlying value as calibrated.
+
+## Focused cross-document follow-up
+
+On 2026-09-08 I prepared a second held-out check using one FY24 financial-performance page from the
+Delhivery annual report and one FY24 summary page from its earnings presentation. The pages express
+the same revenue at different precision and scale: ₹81,415.38 million and ₹8,142 crore.
+
+The free provider quota returned a 429 response for both pages after the bounded retry budget, so no
+facts or relationships from this attempt are counted as evaluation results. I did not switch on
+billing or substitute hand-written outputs. The source pair did expose a deterministic edge case,
+which now has a regression test: compatible numbers are compared in base units while respecting the
+coarser source's stated rounding precision. A future quota window can rerun the same two-page check.

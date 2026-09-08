@@ -71,6 +71,14 @@ CREATE TABLE IF NOT EXISTS relations (
     UNIQUE(left_fact_id, right_fact_id)
 );
 
+CREATE TABLE IF NOT EXISTS relation_checks (
+    left_fact_id TEXT NOT NULL REFERENCES facts(id) ON DELETE CASCADE,
+    right_fact_id TEXT NOT NULL REFERENCES facts(id) ON DELETE CASCADE,
+    outcome TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (left_fact_id, right_fact_id)
+);
+
 CREATE TABLE IF NOT EXISTS failures (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     document_id TEXT REFERENCES documents(id) ON DELETE CASCADE,
@@ -215,6 +223,24 @@ class Store:
                     **payload,
                     "decisive_context_json": json.dumps(payload.pop("decisive_context")),
                 },
+            )
+
+    def checked_relation_pairs(self) -> set[tuple[str, str]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT left_fact_id, right_fact_id FROM relation_checks"
+            ).fetchall()
+        return {tuple(sorted((row["left_fact_id"], row["right_fact_id"]))) for row in rows}
+
+    def mark_relation_checked(self, left_fact_id: str, right_fact_id: str, outcome: str) -> None:
+        left_fact_id, right_fact_id = sorted((left_fact_id, right_fact_id))
+        with self.connect() as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO relation_checks(left_fact_id, right_fact_id, outcome)
+                VALUES (?, ?, ?)
+                """,
+                (left_fact_id, right_fact_id, outcome),
             )
 
     def add_failure(

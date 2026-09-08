@@ -111,9 +111,10 @@ database migration.
 
 My main rule is that a fact should not enter the knowledge layer unless its evidence can be found on
 the claimed PDF page. The model must return a verbatim quote and a one-based page number. Proofline
-normalizes whitespace and checks the quote against the text from that page. It then checks that the
-stored number, unit, period, date, modality, and any unit conversion agree with the quote. A failed
-check goes to Diagnostics with the rejected candidate and field-level reasons.
+normalizes whitespace and checks the quote against the text from that page. It then checks the
+subject, metric, object, scope, comparison key, number, unit, period, date, modality, and any unit
+conversion against the quote, a bounded window around it, and the document identity. A failed check
+goes to Diagnostics with the rejected candidate and field-level reasons.
 
 For facts that pass, Proofline finds the quote's coordinates and highlights the words in the source
 page. A small word-sequence fallback handles PDF quirks such as superscript footnote numbers. This
@@ -134,8 +135,10 @@ then chooses one of four results:
 - `unrelated`: not stored as a relationship.
 
 Before a relationship is stored, deterministic guardrails reject impossible numeric labels. For
-example, two equal values cannot be called a contradiction, and different normalized values cannot
-be called corroboration.
+example, two equal values cannot be called a contradiction, and different comparable values cannot
+be called corroboration. The comparison works with normalized values when supplied and safely falls
+back to compatible raw units. It also respects the precision shown by each source, so a value rounded
+to crore can agree with a more precise value in million without making 6.5% equal to 6.6%.
 
 ### Required cases in the included demo
 
@@ -150,7 +153,9 @@ be called corroboration.
 
 SQLite stores the documents, extracted page text, accepted facts, relationships, and failures. A
 SHA-256 hash identifies each source file. Uploading the same PDF twice does not process it twice, and
-new documents add relationships without rebuilding the existing layer.
+new documents add relationships without rebuilding the existing layer. Stored relationships and
+completed `unrelated` decisions are excluded before candidate limits are applied, which keeps older
+pairs from crowding out newly uploaded documents or being compared repeatedly.
 
 ### API
 
@@ -197,6 +202,9 @@ new documents add relationships without rebuilding the existing layer.
   retries, and saved progress for each chunk.
 - The deterministic validator checks common numeric scales, currencies, dates, fiscal years, and
   fiscal quarters. Unusual accounting units and non-standard periods still need broader test data.
+- The held-out Delhivery run validates extraction and grounding on one complete presentation, but a
+  labelled multi-document relationship benchmark is still needed to measure retrieval recall and
+  relationship precision beyond the checked India macroeconomy example.
 - The public demonstration bundles only its three public institutional excerpts. Locally uploaded
   PDFs stay on that machine. A real multi-tenant service would need encrypted object storage,
   retention settings, tenant isolation, and deletion workflows.

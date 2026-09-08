@@ -3,7 +3,7 @@ from pathlib import Path
 import pymupdf
 
 from proofline.pipeline import KnowledgeLayer
-from proofline.schemas import FactBatch, FactCandidate
+from proofline.schemas import FactBatch, FactCandidate, RelationDecision, StoredFact
 from proofline.store import Store
 
 
@@ -29,7 +29,10 @@ class FakeExtractor:
                     scope=["consolidated"],
                     modality="actual",
                     comparison_key="delhivery|revenue from customers",
-                    evidence_quote="Revenue from customers was INR 8,142 crore in FY24.",
+                    evidence_quote=(
+                        "Delhivery's consolidated revenue from customers was "
+                        "INR 8,142 crore in FY24."
+                    ),
                     page_number=1,
                     confidence=0.98,
                     extraction_note=None,
@@ -67,12 +70,26 @@ class EmptyExtractor(FakeExtractor):
         return FactBatch(facts=[])
 
 
+class UnrelatedExtractor(FakeExtractor):
+    def __init__(self) -> None:
+        self.comparisons = 0
+
+    def compare(self, left, right, left_context="", right_context="") -> RelationDecision:
+        self.comparisons += 1
+        return RelationDecision(
+            relation_type="unrelated",
+            confidence=0.95,
+            explanation="The source context does not support treating these facts as related.",
+            decisive_context=["insufficient overlap"],
+        )
+
+
 def make_pdf(path: Path) -> None:
     document = pymupdf.open()
     page = document.new_page()
     page.insert_text(
         (72, 72),
-        "Revenue from customers was INR 8,142 crore in FY24.",
+        "Delhivery's consolidated revenue from customers was INR 8,142 crore in FY24.",
     )
     document.save(path)
     document.close()
@@ -159,3 +176,36 @@ def test_empty_extraction_is_visible_and_not_marked_ready(tmp_path: Path) -> Non
     assert result.status == "empty"
     assert result.chunks_empty == 1
     assert store.failures()[0]["stage"] == "empty_extraction"
+
+
+def test_unrelated_relation_decision_is_not_repeated(tmp_path: Path) -> None:
+    store = Store(tmp_path / "proofline.db")
+    source_fact = FakeExtractor().extract("source.pdf", "text").facts[0]
+    for suffix in ("a", "b"):
+        document_id = f"doc-{suffix}"
+        store.add_document(
+            document_id,
+            f"{suffix}.pdf",
+            f"hash-{suffix}",
+            [(1, source_fact.evidence_quote)],
+        )
+        store.set_document_status(document_id, "ready")
+        store.add_fact(
+            StoredFact(
+                **source_fact.model_dump(),
+                id=f"fact-{suffix}",
+                document_id=document_id,
+                document_name=f"{suffix}.pdf",
+                chunk_index=0,
+                evidence_status="exact",
+                extraction_method="test",
+            )
+        )
+
+    extractor = UnrelatedExtractor()
+    layer = KnowledgeLayer(store, extractor)
+
+    assert layer.discover_relations() == 0
+    assert layer.discover_relations() == 0
+    assert extractor.comparisons == 1
+    assert store.checked_relation_pairs() == {("fact-a", "fact-b")}

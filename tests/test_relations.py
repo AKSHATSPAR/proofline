@@ -66,3 +66,19 @@ def test_candidate_pairs_normalize_entity_suffixes_and_metric_phrases() -> None:
     right = right.model_copy(update={"subject": "India Limited"})
 
     assert candidate_pairs([left, right]) == [("a", "b")]
+
+
+def test_excluded_pairs_do_not_consume_the_per_fact_limit() -> None:
+    facts = [
+        fact(identifier, f"doc-{identifier}", "delhivery|revenue", "revenue")
+        for identifier in "abcdef"
+    ]
+
+    pairs = candidate_pairs(
+        facts,
+        limit_per_fact=2,
+        excluded_pairs={("a", "b"), ("a", "c")},
+    )
+
+    assert ("a", "d") in pairs
+    assert ("a", "e") in pairs

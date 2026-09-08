@@ -8,6 +8,6 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: PROOFLINE_DB_PATH
-        value: /tmp/proofline.db
+        value: /tmp/proofline-v2.db
       - key: PROOFLINE_DEMO_ONLY
         value: "1"
