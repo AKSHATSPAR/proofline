@@ -8,6 +8,8 @@ The app opens with an India macroeconomy example that I checked against the orig
 explore that example without an API key. To process new files, the default setup uses Gemini's free
 API tier. OpenAI is also supported if you already use it.
 
+**Live demo:** [proofline-y1ln.onrender.com](https://proofline-y1ln.onrender.com)
+
 ## Setup and Run Instructions
 
 Requirements: Python 3.11+ and [uv](https://docs.astral.sh/uv/).
@@ -54,9 +56,11 @@ uv run ruff format --check .
 
 ### Public demo deployment
 
-The repository includes a Render Blueprint. Connect the GitHub repository from Render's Blueprint
-screen and choose the free service defined in `render.yaml`. No secret is required. The deployed app
-starts from a fresh SQLite database and loads the checked demonstration automatically.
+The live read-only demo is available at
+[proofline-y1ln.onrender.com](https://proofline-y1ln.onrender.com). The repository also includes a
+Render Blueprint for creating a separate instance. Connect the GitHub repository from Render's
+Blueprint screen and choose the free service defined in `render.yaml`. No secret is required. The
+deployed app starts from a fresh SQLite database and loads the checked demonstration automatically.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/AKSHATSPAR/proofline)
 

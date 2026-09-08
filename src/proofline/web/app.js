@@ -47,6 +47,13 @@ function confidenceLabel(value) {
   return "Low";
 }
 
+function normalizedValueNote(fact) {
+  if (fact.normalized_value === null || fact.normalized_value === undefined) return "";
+  const normalized = `${fact.normalized_value} ${fact.normalized_unit || ""}`.trim();
+  if (!normalized || normalized.toLowerCase() === String(fact.object_text).trim().toLowerCase()) return "";
+  return `<span class="td-sub">Normalized: ${esc(normalized)}</span>`;
+}
+
 function relationTitle(relation) {
   const labels = {
     corroborates: "Separate publications converge",
@@ -101,7 +108,7 @@ function renderFacts() {
   byId("factsTable").innerHTML = facts.map((fact) => `
     <tr>
       <td><button class="fact-link" data-evidence="${esc(fact.id)}">${esc(fact.subject)} · ${esc(fact.predicate)}</button><span class="td-sub">${esc(fact.scope.join(" · "))}</span></td>
-      <td><strong>${esc(fact.object_text)}</strong><span class="td-sub">${esc(fact.normalized_unit || fact.unit || fact.value_type)}</span></td>
+      <td><strong>${esc(fact.object_text)}</strong>${normalizedValueNote(fact)}</td>
       <td>${esc(periodLabel(fact))}<span class="td-sub">${esc(fact.modality)}</span></td>
       <td>${esc(shortName(fact.document_name))}<span class="td-sub">PDF page ${fact.page_number}</span></td>
       <td>${confidenceLabel(fact.confidence)}<div class="confidence-bar"><i style="width:${Math.round(fact.confidence * 100)}%"></i></div></td>
