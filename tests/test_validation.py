@@ -53,6 +53,22 @@ def test_fact_semantics_accept_supported_number_period_unit_and_conversion() -> 
     assert validate_fact_semantics(candidate()) == []
 
 
+def test_fact_semantics_handles_a_line_break_between_sign_and_number() -> None:
+    fact = candidate(
+        object_text="-44,501.15",
+        value_number=-44_501.15,
+        unit="INR million",
+        normalized_value=None,
+        normalized_unit=None,
+        period_start=None,
+        period_end=None,
+        scope=[],
+        evidence_quote=("Delhivery revenue from customers changed by -\n44,501.15 INR million."),
+    )
+
+    assert "number_not_in_evidence" not in {issue.code for issue in validate_fact_semantics(fact)}
+
+
 def test_fact_semantics_reject_structured_fields_not_supported_by_quote() -> None:
     issues = validate_fact_semantics(
         candidate(

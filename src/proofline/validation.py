@@ -93,7 +93,7 @@ def _numbers(value: str) -> list[float]:
     numbers = [-float(match.group(1).replace(",", "")) for match in _PAREN_NUMBER.finditer(value)]
     without_parenthesized = _PAREN_NUMBER.sub(" ", value)
     for match in _PLAIN_NUMBER.finditer(without_parenthesized):
-        token = match.group(0).replace(",", "").replace("−", "-").replace(" ", "")
+        token = re.sub(r"\s+", "", match.group(0).replace(",", "").replace("−", "-"))
         numbers.append(float(token))
     return numbers
 
@@ -150,7 +150,7 @@ def _reported_tolerance(fact: FactCandidate) -> float:
         candidates.append((-float(match.group(1).replace(",", "")), match.group(1)))
     without_parenthesized = _PAREN_NUMBER.sub(" ", fact.object_text)
     for match in _PLAIN_NUMBER.finditer(without_parenthesized):
-        token = match.group(0).replace(",", "").replace("−", "-").replace(" ", "")
+        token = re.sub(r"\s+", "", match.group(0).replace(",", "").replace("−", "-"))
         candidates.append((float(token), token))
 
     for value, token in candidates:

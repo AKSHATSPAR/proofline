@@ -86,3 +86,29 @@ facts or relationships from this attempt are counted as evaluation results. I di
 billing or substitute hand-written outputs. The source pair did expose a deterministic edge case,
 which now has a regression test: compatible numbers are compared in base units while respecting the
 coarser source's stated rounding precision. A future quota window can rerun the same two-page check.
+
+## Resumable full-set attempt
+
+On 2026-09-08 I also ran all three Delhivery PDFs after increasing the safe chunk size and batching
+relationship candidates. The planned request budget was 18 extraction requests, followed by one
+relationship request.
+
+The first pass found a normalizer defect in a real annual-report fragment: the PDF placed a line
+break between a minus sign and `44,501.15`. The validator removed ordinary spaces around signs but
+not newline characters, so numeric parsing raised an exception. The completed first chunk remained
+in SQLite. After fixing the parser and adding a regression test, the rerun resumed at the failed
+chunk rather than restarting the document.
+
+The configured free-tier key had already used part of its daily allowance before this run. It
+reached that allowance during the annual report, so the final state was:
+
+- 16 accepted facts from the complete prospectus;
+- 24 accepted facts from completed annual-report chunks;
+- 40 of 40 accepted facts passed page grounding, structured field validation, and word anchoring;
+- 76 candidates were quarantined by evidence or field validation;
+- seven annual-report chunks and the earnings presentation remained retryable; and
+- the one remaining relationship batch received a quota response, so no relationship result from
+  this attempt is counted.
+
+This is evidence that chunk-level recovery works on the real starter data. It is not a completed
+three-document relationship benchmark, and I have kept that limitation explicit.
