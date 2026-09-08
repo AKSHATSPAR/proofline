@@ -49,6 +49,26 @@ class RateLimitedInteractions(FakeInteractions):
         return super().create(**request)
 
 
+class LongWindowRateLimitError(Exception):
+    status_code = 429
+
+    def __init__(self) -> None:
+        self.message = "Quota reached. Please retry in 70.0s."
+        super().__init__(self.message)
+
+
+class LongWindowRateLimitedInteractions(FakeInteractions):
+    def __init__(self, payload: dict):
+        super().__init__(payload)
+        self.calls = 0
+
+    def create(self, **request):
+        self.calls += 1
+        if self.calls == 1:
+            raise LongWindowRateLimitError
+        return super().create(**request)
+
+
 def test_gemini_extractor_requests_schema_constrained_facts() -> None:
     interactions = FakeInteractions({"facts": []})
     client = SimpleNamespace(interactions=interactions)
@@ -94,6 +114,19 @@ def test_gemini_retries_interactions_rate_limit_and_honours_delay(monkeypatch) -
     assert result.facts == []
     assert interactions.calls == 2
     assert delays == [26.0]
+
+
+def test_gemini_waits_up_to_a_minute_for_the_provider_window(monkeypatch) -> None:
+    interactions = LongWindowRateLimitedInteractions({"facts": []})
+    client = SimpleNamespace(interactions=interactions)
+    delays: list[float] = []
+    monkeypatch.setattr("proofline.llm.time.sleep", delays.append)
+
+    result = GeminiExtractor(model="gemini-test", client=client).extract("report.pdf", "text")
+
+    assert result.facts == []
+    assert interactions.calls == 2
+    assert delays == [60]
 
 
 def test_comparison_includes_bounded_source_context() -> None:

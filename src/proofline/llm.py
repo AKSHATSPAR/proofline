@@ -176,7 +176,9 @@ class GeminiExtractor:
                 retry_seconds = (
                     float(retry_match.group(1)) + 0.5 if retry_match else 2 ** (attempt + 1)
                 )
-                time.sleep(min(retry_seconds, 30))
+                # The free tier can return a retry delay close to the next minute
+                # boundary. Retrying earlier only repeats the same quota response.
+                time.sleep(min(retry_seconds, 60))
 
         raise RuntimeError("Gemini request exhausted its retry budget")
 

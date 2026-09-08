@@ -112,3 +112,30 @@ reached that allowance during the annual report, so the final state was:
 
 This is evidence that chunk-level recovery works on the real starter data. It is not a completed
 three-document relationship benchmark, and I have kept that limitation explicit.
+
+## Completed no-cost continuation
+
+On 2026-09-09 I resumed the same database with a replacement key. The key belonged to a project
+with the same 20-request allowance, so changing the key did not remove the quota. I kept billing
+disabled and used the stable `gemini-3.5-flash-lite` model only for the remaining failed chunks and
+the pending relationship batch. Completed `gemini-3.7-flash` chunks were not run again.
+
+The final persisted result is:
+
+- 45 accepted facts: 16 from the prospectus and 29 from the annual report;
+- 45 of 45 accepted facts passed page anchoring, structured field validation, and word anchoring;
+- 164 additional candidates were quarantined, including every candidate returned for the earnings
+  presentation;
+- all source chunks reached a terminal state, with no extraction call left failed or pending; and
+- one cross-document relationship was accepted.
+
+The accepted relationship compares rated automated sort capacity of 3.70 million shipments per day
+as of 31 December 2021 with 7.1 million shipments per day as of 31 March 2024. It was classified as
+`reconciles` because the different dates explain why the values can both be true. The deterministic
+relationship validator accepted that decision.
+
+The presentation result exposes a real limitation rather than a quota artifact. The smaller model
+returned 12 candidates, but every one lacked enough contiguous support for its structured fields, so
+the pipeline accepted none of them. This is intentionally visible as a `rejected` document. Better
+layout-aware table extraction or a labelled review set could improve recall without weakening the
+evidence gate.
