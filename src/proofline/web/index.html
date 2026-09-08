@@ -109,7 +109,7 @@
         <p id="processingMode" class="mode-note"></p>
         <label class="drop-zone" id="dropZone">
           <input id="pdfFiles" type="file" accept="application/pdf,.pdf" multiple />
-          <span class="upload-icon">↑</span><strong>Drop PDFs here or click to browse</strong><small>Up to 50 MB each. Existing files are skipped by content hash.</small>
+          <span class="upload-icon">↑</span><strong id="dropTitle">Drop PDFs here or click to browse</strong><small id="dropHint">Up to 50 MB each. Existing files are skipped by content hash.</small>
         </label>
         <div id="selectedFiles" class="selected-files"></div>
         <div id="jobProgress" class="job-progress hidden"><div><span id="jobMessage">Preparing...</span><b id="jobPercent">0%</b></div><progress id="jobBar" max="100" value="0"></progress></div>

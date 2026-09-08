@@ -18,10 +18,9 @@ def load_demo(store: Store, path: Path = DEMO_PATH) -> bool:
     if all(store.document_by_hash(item["sha256"]) for item in payload["documents"]):
         return False
 
-    project_root = Path(__file__).resolve().parents[2]
     page_lookup: dict[tuple[str, int], str] = {}
     for document in payload["documents"]:
-        source_candidate = project_root / document["relative_source"]
+        source_candidate = DEMO_PATH.parent / "sources" / Path(document["relative_source"]).name
         source_path = str(source_candidate) if source_candidate.exists() else None
         page_texts = [(item["page_number"], item["text"]) for item in document["pages"]]
         for page_number, text in page_texts:

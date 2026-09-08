@@ -38,6 +38,7 @@ def test_demo_exposes_all_required_cases(tmp_path: Path) -> None:
 
 
 def test_page_evidence_and_no_key_upload_guard(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("PROOFLINE_DEMO_ONLY", raising=False)
     monkeypatch.setenv("PROOFLINE_PROVIDER", "gemini")
     monkeypatch.setenv("GEMINI_API_KEY", "")
     monkeypatch.setenv("OPENAI_API_KEY", "")
@@ -67,3 +68,23 @@ def test_page_evidence_and_no_key_upload_guard(tmp_path: Path, monkeypatch) -> N
         assert evidence_image.status_code == 404
     assert upload.status_code == 503
     assert "GEMINI_API_KEY" in upload.json()["detail"]
+
+
+def test_public_demo_stays_read_only_even_when_a_key_exists(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("PROOFLINE_DEMO_ONLY", "1")
+    monkeypatch.setenv("PROOFLINE_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "configured-but-never-used")
+    client = TestClient(create_app(tmp_path / "api.db"))
+
+    config = client.get("/api/config")
+    upload = client.post(
+        "/api/uploads",
+        files=[("files", ("sample.pdf", b"%PDF-1.4\n", "application/pdf"))],
+    )
+    demo_mutation = client.post("/api/demo")
+
+    assert config.json()["demo_only"] is True
+    assert config.json()["live_processing"] is False
+    assert upload.status_code == 403
+    assert "read only" in upload.json()["detail"]
+    assert demo_mutation.status_code == 403

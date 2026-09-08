@@ -52,6 +52,23 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
+### Public demo deployment
+
+The repository includes a Render Blueprint. Connect the GitHub repository from Render's Blueprint
+screen and choose the free service defined in `render.yaml`. No secret is required. The deployed app
+starts from a fresh SQLite database and loads the checked demonstration automatically.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/AKSHATSPAR/proofline)
+
+The public deployment is deliberately read-only. This keeps a shared provider key from being used
+by strangers while preserving the complete review experience, including the original public report
+excerpts and highlighted evidence pages. New PDF processing remains available through the local
+setup above.
+
+Render's free service can sleep after 15 minutes without traffic, so the first visit may take about
+a minute to wake up. Its filesystem is temporary, which is acceptable here because the public demo
+rebuilds from bundled data at startup.
+
 I recorded the latest real-model test in [`docs/live-evaluation.md`](docs/live-evaluation.md). Notes
 from studying similar products and open-source projects are in
 [`docs/design-benchmark.md`](docs/design-benchmark.md).
@@ -176,8 +193,9 @@ new documents add relationships without rebuilding the existing layer.
   retries, and saved progress for each chunk.
 - The deterministic validator checks common numeric scales, currencies, dates, fiscal years, and
   fiscal quarters. Unusual accounting units and non-standard periods still need broader test data.
-- Source PDFs are stored on the local machine. A real multi-tenant service would need encrypted
-  object storage, retention settings, tenant isolation, and deletion workflows.
+- The public demonstration bundles only its three public institutional excerpts. Locally uploaded
+  PDFs stay on that machine. A real multi-tenant service would need encrypted object storage,
+  retention settings, tenant isolation, and deletion workflows.
 
 ## Additional Notes
 

@@ -11,8 +11,8 @@ from typing import Annotated
 import pymupdf
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from proofline.audit import grounding_audit
@@ -32,6 +32,10 @@ PACKAGE_ROOT = Path(__file__).parent
 WEB_ROOT = PACKAGE_ROOT / "web"
 PROJECT_ROOT = PACKAGE_ROOT.parents[1]
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+
+def _demo_only() -> bool:
+    return os.getenv("PROOFLINE_DEMO_ONLY", "").strip().lower() in {"1", "true", "yes"}
 
 
 class JobManager:
@@ -127,6 +131,23 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.state.store = store
     app.state.jobs = jobs
 
+    @app.middleware("http")
+    async def enforce_public_demo(request: Request, call_next):
+        if _demo_only() and request.method not in {"GET", "HEAD", "OPTIONS"}:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": (
+                        "The public demonstration is read only. "
+                        "Run Proofline locally to process new PDFs."
+                    )
+                },
+            )
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        return response
+
     @app.get("/api/health")
     def health() -> dict:
         return {"status": "ok"}
@@ -134,8 +155,10 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     @app.get("/api/config")
     def config() -> dict:
         active_provider = provider_name()
+        demo_only = _demo_only()
         return {
-            "live_processing": provider_is_configured(active_provider),
+            "live_processing": not demo_only and provider_is_configured(active_provider),
+            "demo_only": demo_only,
             "provider": active_provider,
             "credential": provider_key_name(active_provider),
             "model": provider_model(active_provider),

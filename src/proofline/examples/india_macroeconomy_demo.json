@@ -5,7 +5,7 @@
       "name": "01-india-economic-survey-2024-25-excerpt.pdf",
       "sha256": "demo-india-economic-survey-2024-25",
       "page_count": 89,
-      "relative_source": "data/starter-datasets/india-macroeconomy/01-india-economic-survey-2024-25-excerpt.pdf",
+      "relative_source": "src/proofline/examples/sources/01-india-economic-survey-2024-25-excerpt.pdf",
       "pages": [
         {
           "page_number": 4,
@@ -18,7 +18,7 @@
       "name": "02-rbi-annual-report-2024-25-excerpt.pdf",
       "sha256": "demo-rbi-annual-report-2024-25",
       "page_count": 100,
-      "relative_source": "data/starter-datasets/india-macroeconomy/02-rbi-annual-report-2024-25-excerpt.pdf",
+      "relative_source": "src/proofline/examples/sources/02-rbi-annual-report-2024-25-excerpt.pdf",
       "pages": [
         {
           "page_number": 8,
@@ -35,7 +35,7 @@
       "name": "03-imf-india-2025-article-iv-excerpt.pdf",
       "sha256": "demo-imf-india-2025-article-iv",
       "page_count": 95,
-      "relative_source": "data/starter-datasets/india-macroeconomy/03-imf-india-2025-article-iv-excerpt.pdf",
+      "relative_source": "src/proofline/examples/sources/03-imf-india-2025-article-iv-excerpt.pdf",
       "pages": [
         {
           "page_number": 3,

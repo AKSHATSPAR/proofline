@@ -169,9 +169,20 @@ async function refresh() {
       ? `${audit.word_anchored} / ${audit.source_available} located`
       : "Sources unavailable";
     byId("processingMode").className = `mode-note ${config.live_processing ? "" : "offline"}`;
-    byId("processingMode").textContent = config.live_processing
-      ? `Live processing is enabled with ${config.provider}/${config.model}. Files are processed incrementally in the background.`
-      : `Curated demo mode is active. Set ${config.credential} in .env and restart the server to process new PDFs.`;
+    byId("processingMode").textContent = config.demo_only
+      ? "This public demonstration is read only so a shared key cannot be exhausted. Clone the repository to process your own PDFs."
+      : config.live_processing
+        ? `Live processing is enabled with ${config.provider}/${config.model}. Files are processed incrementally in the background.`
+        : `Curated demo mode is active. Set ${config.credential} in .env and restart the server to process new PDFs.`;
+    byId("pdfFiles").disabled = config.demo_only;
+    byId("dropZone").classList.toggle("disabled", config.demo_only);
+    byId("dropTitle").textContent = config.demo_only
+      ? "Uploads are disabled in the public demonstration"
+      : "Drop PDFs here or click to browse";
+    byId("dropHint").textContent = config.demo_only
+      ? "Clone the repository and follow its setup instructions to process new documents."
+      : "Up to 50 MB each. Existing files are skipped by content hash.";
+    byId("processFiles").textContent = config.demo_only ? "Available locally" : "Process PDFs";
     byId("processFiles").disabled = !config.live_processing;
   } catch (error) {
     showToast(error.message);
