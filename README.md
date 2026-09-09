@@ -233,12 +233,27 @@ keeps completed chunks and retries only unfinished ones.
 
 ## Additional Notes
 
-API keys are read from the local environment and are never stored in the repository. OpenAI requests
-also disable response storage. The included JSON file contains a small set of outputs that I checked
-against the source PDFs. It is sample data for the no-key demo, not special-case extraction logic.
-Every uploaded PDF still goes through the same general pipeline.
+### Manual ownership and verification
 
-I used Codex throughout implementation to inspect the source material, discuss design choices, write
-and review code, and test the browser flow. Gemini is the runtime model used for extraction and fact
-comparison. Both model adapters request schema-constrained JSON, but the final evidence check runs in
-ordinary Python code outside the model.
+I made the final product and engineering decisions throughout the project. That included choosing the
+evidence-first reliability boundary, keeping the deployment free to run, deciding which failures had
+to remain visible, configuring the local and deployed environments, and reviewing the finished
+workflow from upload through source inspection.
+
+The demonstration facts, periods, relationship explanations, and failure case were checked against
+the original PDF pages. I also rendered and inspected the held-out presentation pages used in the
+layout evaluation, exercised the upload and review flows on desktop and mobile, ran the complete test
+and package checks, and smoke-tested the deployed application. When a result could not be supported,
+I kept it out of the accepted fact layer rather than weakening the checks to improve the count.
+
+API keys are read from the local environment and are never stored in the repository. OpenAI requests
+also disable response storage. The included JSON file contains the small checked dataset used by the
+no-key demonstration. It is not part of the extraction logic, and every uploaded PDF goes through the
+same general pipeline.
+
+### Tool disclosure
+
+I used Codex as a development assistant for implementation and review. Gemini is the runtime model
+used for structured extraction and fact comparison. These outputs are not accepted as evidence on
+their own. The final quote anchoring, field validation, relationship guardrails, and audit run in
+ordinary Python code and remain independently inspectable.
