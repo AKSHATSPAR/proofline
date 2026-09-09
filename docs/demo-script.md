@@ -1,51 +1,72 @@
-# Proofline demo script (target: 2:30-2:50)
+# Proofline demo script (target: 2:40 to 2:55)
 
-## 0:00-0:25 - Frame the problem
+Use a screen recording with voice narration.
 
-Open the Relationships view.
+## 0:00 to 0:18 | Introduction
 
-“I built Proofline to answer a simple question: when two documents say something about the same
-topic, do they agree? It pulls out facts, keeps the source page attached, and explains real and
-apparent conflicts. This example uses three reports on the Indian economy.”
+Show the Relationships page.
 
-## 0:25-0:55 - Explain the review set
+“Hi, this is Proofline. I built it to compare claims across financial PDFs while keeping every
+accepted fact tied to the exact page and words that support it. I will show how it handles agreement,
+conflict, reconciliation, and a failed extraction, then briefly show the API and repository.”
 
-Point to the curated, source-verified label and the page and field checks in the pipeline card. Open
-**Documents** to show that the original report excerpts are bundled for review. Explain that the
-public site is deliberately read only, while a local copy can process new PDFs with a free-tier key.
+## 0:18 to 0:38 | Documents and pipeline
 
-Briefly mention that pages stay separate, repeat uploads are skipped by file hash, interrupted runs
-resume from unfinished chunks, and a fact is rejected if its quote cannot be found on the claimed
-page.
+Open Documents, then return to Relationships.
 
-## 0:55-1:30 - Corroboration and evidence
+“This demonstration uses excerpts from three public reports on the Indian economy. Pages remain
+separate during extraction. Repeat uploads are skipped, and interrupted runs continue from their
+unfinished chunks. If a quote cannot be verified on its claimed page, the fact is rejected.”
 
-Filter to **Corroborates**. Show RBI 6.5% beside IMF 6.5% for FY2024/25. Open one evidence drawer
-and point to the highlighted words, page number, quote, scope, and confidence. Say that regular code
-finds this highlight after the quote passes the evidence check. The model does not invent the box.
+## 0:38 to 1:08 | Corroboration
 
-## 1:30-1:55 - Likely contradiction
+Filter to Corroborates and open the evidence for the 6.5% FY2024/25 result.
 
-Filter to **Contradicts**. Show the FY2025/26 real GDP forecasts: RBI says 6.5%, while the IMF says
-6.6%. They are forecasts published at different times, but they still make different claims about
-the same metric and period.
+“The RBI and IMF both report real GDP growth of 6.5% for the same period. The evidence drawer shows
+the source, page, quote, and highlighted words on the original PDF. The highlight is found only after
+the quote and structured fields pass deterministic checks.”
 
-## 1:55-2:20 - Contextual reconciliation
+## 1:08 to 1:32 | Contradiction
 
-Filter to **Reconciles**. Show the Economic Survey's 6.4% beside the RBI's 6.5%. The first number is
-the First Advance Estimate. The later RBI report uses the Second Advance Estimate, so this is a
-revision rather than a direct contradiction.
+Filter to Contradicts.
 
-## 2:20-2:40 - Failure handling
+“For FY2025/26, the RBI forecast is 6.5% and the IMF forecast is 6.6%. These claims refer to the same
+metric and period but give different values, so Proofline marks a likely contradiction and keeps both
+sources available for review.”
 
-Open **Diagnostics**. Show the IMF borderless-table value whose decimal was split across lines.
-Proofline could not safely tell which year owned the value, so it kept the candidate out of the fact
-table.
+## 1:32 to 1:56 | Reconciliation
 
-## 2:40-2:50 - Close
+Filter to Reconciles.
 
-Open **Facts** briefly, then point out the FastAPI docs and the local SQLite database.
+“Here, 6.4% and 6.5% look inconsistent at first. The Economic Survey uses the First Advance Estimate,
+while the later RBI report uses the Second Advance Estimate. Proofline therefore explains this as a
+revision, not a direct contradiction.”
 
-“The main gaps are borderless or multi-page tables and scanned PDFs. For the documents it can read,
-the full loop is working: discover a fact, check its evidence, compare it with other sources, and
-explain the result.”
+## 1:56 to 2:16 | Failure
+
+Open Diagnostics and select the borderless-table failure.
+
+“This table split a decimal value across lines, so the year-to-value mapping was ambiguous. The
+candidate is quarantined with its reason instead of being turned into an unsupported fact.”
+
+## 2:16 to 2:34 | Fact register
+
+Open Facts and one evidence drawer.
+
+“The fact register keeps normalized fields, source context, validation notes, and direct evidence.
+This makes each result inspectable instead of showing only a generated summary.”
+
+## 2:34 to 2:48 | API and implementation
+
+Open `/docs`, then briefly show the repository tree on GitHub.
+
+“The browser interface and API use the same FastAPI service and SQLite store. The API covers uploads,
+job status, facts, relationships, failures, source pages, and grounding audits. The repository also
+includes tests, deployment configuration, and the evaluation notes.”
+
+## 2:48 to 2:55 | Close
+
+Return to Relationships.
+
+“The main remaining gaps are scanned PDFs and unusually structured tables. For supported documents,
+the full loop works from extraction and evidence checking to comparison and source review.”

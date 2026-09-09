@@ -4,9 +4,8 @@ Proofline answers a practical question: when several PDFs talk about the same su
 agree? It pulls out individual facts, keeps the source page beside each one, and explains whether
 two claims support each other, conflict, or differ for a valid reason such as time or scope.
 
-The app opens with an India macroeconomy example that I checked against the original PDFs. You can
-explore that example without an API key. To process new files, the default setup uses Gemini's free
-API tier. OpenAI is also supported if you already use it.
+The app opens with an India macroeconomy example checked against the original PDFs. It can be
+reviewed without an API key.
 
 **Live demo:** [proofline-y1ln.onrender.com](https://proofline-y1ln.onrender.com)
 
@@ -33,8 +32,7 @@ uv run proofline-serve
 ```
 
 Keep the Google AI Studio project on the **Free Tier** and do not select **Set up billing**. The
-default model is `gemini-3.7-flash`. Google states that free-tier prompts and responses may be used
-to improve its products, so use the included public starter documents, not confidential material.
+default model is `gemini-3.7-flash`. Use only non-confidential documents with the free tier.
 
 To use OpenAI instead, set `PROOFLINE_PROVIDER=openai` and `OPENAI_API_KEY` in `.env`. Provider keys
 stay server-side and are never sent to the browser.
@@ -54,27 +52,14 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-The same test, lint, formatting, and package-build checks run automatically on pushes and pull
-requests through GitHub Actions.
+The same checks, plus a package build, run through GitHub Actions.
 
 ### Public demo deployment
 
-The live read-only demo is available at
-[proofline-y1ln.onrender.com](https://proofline-y1ln.onrender.com). The repository also includes a
-Render Blueprint for creating a separate instance. Connect the GitHub repository from Render's
-Blueprint screen and choose the free service defined in `render.yaml`. No secret is required. The
-deployed app starts from a fresh SQLite database and loads the checked demonstration automatically.
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/AKSHATSPAR/proofline)
-
-The public deployment is deliberately read-only. This keeps a shared provider key from being used
-by strangers while preserving the complete review experience, including the original public report
-excerpts and highlighted evidence pages. New PDF processing remains available through the local
-setup above.
-
-Render's free service can sleep after 15 minutes without traffic, so the first visit may take about
-a minute to wake up. Its filesystem is temporary, which is acceptable here because the public demo
-rebuilds from bundled data at startup.
+The [live demo](https://proofline-y1ln.onrender.com) is read-only so no shared provider key is
+exposed. It still includes the complete review workflow, original public report excerpts, and
+highlighted evidence. Uploading new PDFs is available in the local setup. The free service may need
+about a minute to wake after inactivity.
 
 I recorded the latest real-model test in [`docs/live-evaluation.md`](docs/live-evaluation.md). Notes
 from studying similar products and open-source projects are in
@@ -82,8 +67,8 @@ from studying similar products and open-source projects are in
 
 ## Video Demo
 
-The final video link will go here after recording. I have kept the walkthrough under three minutes;
-the outline is in [`docs/demo-script.md`](docs/demo-script.md).
+The demo video link will be added after recording. The planned walkthrough is in
+[`docs/demo-script.md`](docs/demo-script.md).
 
 ## Approach
 
@@ -128,12 +113,10 @@ Ruled tables also get a bounded row-and-column view from PyMuPDF's table detecto
 associate values with headers, but it is interpretation context only. A generated table row cannot
 pass as evidence unless the quoted words are also present in the ordinary page text.
 
-The extraction step sometimes finds a valid core claim and then adds an unsupported optional scope,
-date, period, or unit conversion. Rejecting the whole claim made recall depend on these optional
-fields. Proofline now removes only unsupported optional metadata and runs the complete validator
-again. It never
-rewrites the subject, metric, object, reported number, unit, comparison key, or quote. Every repair
-is stored in the fact's extraction note and shown in the evidence drawer.
+The extraction step sometimes finds a valid core claim but adds unsupported optional scope, date,
+period, or unit conversion. Proofline removes only that optional metadata and runs the complete
+validator again. It never rewrites the subject, metric, object, reported number, unit, comparison
+key, or quote. Every repair is stored in the extraction note and shown in the evidence drawer.
 
 ### Cross-document comparison
 
@@ -158,7 +141,7 @@ to crore can agree with a more precise value in million without making 6.5% equa
 corroboration or contradiction also requires an explicit matching period or date. Two missing dates
 are treated as unknown, not as a match.
 
-### Required cases in the included demo
+### Demonstrated outcomes
 
 | Case | Sources | Result |
 | --- | --- | --- |
@@ -179,77 +162,51 @@ keeps completed chunks and retries only unfinished ones.
 
 ### API
 
-- `POST /api/uploads` - validate and enqueue new PDFs
-- `GET /api/jobs/{id}` - processing status
-- `GET /api/facts` - facts with evidence and context
-- `GET /api/relations` - enriched relationship pairs
-- `GET /api/documents/{id}/pages/{page}` - extracted page text
-- `GET /api/documents/{id}/pages/{page}/image` - rendered source page
-- `GET /api/facts/{id}/evidence-image` - source page with the fact's exact evidence highlighted
-- `GET /api/audits/grounding` - deterministic page- and word-anchor coverage
-- `GET /api/failures` - quarantined extraction and reasoning failures
+The interactive `/docs` page covers PDF upload and job status, accepted facts and relationships,
+quarantined failures, extracted pages, evidence images, and the grounding audit.
 
 ## Important Decisions and Trade-offs
 
-- I used one FastAPI process and a small browser interface so the reviewer gets both an API and a
-  useful inspection screen without setting up a separate frontend project.
-- SQLite is enough for this prototype. A graph database would add setup work, but it would not make
-  fact discovery or source checking more reliable.
-- Evidence and structured field matching are deterministic. Relationship labels still use a model,
-  so every label carries a qualitative review signal and a short explanation. Raw confidence is
-  retained in the API for sorting, not presented as a calibrated probability.
-- Highlights are created from the original PDF when the reviewer opens a fact. They are not citation
-  coordinates invented by the model.
-- I use the PDF's actual page index because printed page numbers can jump inside curated excerpts.
-- Bounded chunks keep model requests manageable. With the included starter files, the India set uses
-  14 extraction requests and the Delhivery set uses 18. Candidate pairs then share one comparison
-  request. File hashes prevent duplicate extraction.
-- Gemini is the default because its free tier makes the project easier to try. The OpenAI adapter is
-  there for people who already have API billing.
-- Temporary provider errors are retried with bounded backoff, including the error type returned by
-  the provider's newer interactions endpoint. A document can be marked `partial`, `empty`,
-  `rejected`, or `failed`, and it can be submitted again after the provider recovers. The UI and CLI
-  surface that status instead of presenting zero extracted facts as a successful run.
+- One FastAPI process serves the API and browser interface, giving the reviewer one setup path.
+- SQLite is sufficient for this prototype. A graph database would add setup cost without improving
+  extraction or evidence quality.
+- Evidence and field matching are deterministic. Relationship labels use a model, so each label
+  includes a qualitative review signal and explanation rather than presenting confidence as a
+  calibrated probability.
+- Evidence highlights come from words on the original PDF page. They are not generated coordinates.
+- Bounded chunks control request size. File hashes prevent duplicate extraction, chunk checkpoints
+  make interrupted runs resumable, and temporary provider errors receive bounded retries. Partial,
+  empty, rejected, and failed states remain visible instead of appearing as successful empty runs.
 
 ## Limitations and Next Steps
 
-- Ruled tables now receive layout-aware row and column context, and the held-out presentation test
-  recovered 29 grounded facts. Borderless tables, tables split across pages, and ambiguous merged
-  headers can still lose the connection between a label and its value. The demo keeps one such
-  failure in Diagnostics instead of guessing.
-- Scanned PDFs need an OCR step before Proofline can read them.
-- The metric alias set is intentionally small. A larger collection would need a measured vocabulary
-  expansion or a hybrid semantic index, with recall checked against labelled cross-document pairs.
-- Jobs run in one background process. Chunk progress survives a retry in SQLite, but a production
-  version would still need a durable queue, cancellation, and coordination across several workers.
-- The deterministic validator checks common numeric scales, currencies, dates, fiscal years, and
-  fiscal quarters. Unusual accounting units and non-standard periods still need broader test data.
-- The held-out Delhivery run validates extraction and grounding on one complete presentation and a
-  resumable multi-document pass. A larger labelled relationship set is still needed to measure
-  retrieval recall and relationship precision beyond the checked examples.
-- The public demonstration bundles only its three public institutional excerpts. Locally uploaded
-  PDFs stay on that machine. A real multi-tenant service would need encrypted object storage,
-  retention settings, tenant isolation, and deletion workflows.
+- Borderless or multi-page tables and merged headers can still lose the connection between a label
+  and its value. The demo keeps one such failure in Diagnostics instead of guessing. Scanned PDFs
+  also need OCR before they can be read.
+- The metric alias set is intentionally small. A larger vocabulary or hybrid semantic index should
+  be measured against labelled pairs before adoption.
+- Jobs run in one process. Production use would need a durable queue, cancellation, and coordination
+  across workers, although chunk progress already survives retries.
+- Unusual accounting units and non-standard periods need broader validation data. The held-out
+  Delhivery presentation produced 29 grounded facts, but a larger labelled relationship set is
+  needed to measure retrieval recall and relationship precision.
+- The public demo uses bundled public excerpts. A multi-tenant deployment would need encrypted
+  object storage, retention controls, tenant isolation, and deletion workflows.
 
 ## Additional Notes
 
 ### Manual ownership and verification
 
-I made the final product and engineering decisions throughout the project. That included choosing the
-evidence-first reliability boundary, keeping the deployment free to run, deciding which failures had
-to remain visible, configuring the local and deployed environments, and reviewing the finished
-workflow from upload through source inspection.
+I made the final product and engineering decisions, including the evidence-first reliability
+boundary, the visible failure states, the free deployment, and the complete review workflow.
 
-The demonstration facts, periods, relationship explanations, and failure case were checked against
-the original PDF pages. I also rendered and inspected the held-out presentation pages used in the
-layout evaluation, exercised the upload and review flows on desktop and mobile, ran the complete test
-and package checks, and smoke-tested the deployed application. When a result could not be supported,
-I kept it out of the accepted fact layer rather than weakening the checks to improve the count.
+I checked the demonstration facts, periods, explanations, and failure case against the original PDF
+pages. I also inspected the held-out presentation, exercised the review flows on desktop and mobile,
+ran the automated checks, and smoke-tested the deployed application. Unsupported results stayed out
+of the accepted fact layer.
 
-API keys are read from the local environment and are never stored in the repository. OpenAI requests
-also disable response storage. The included JSON file contains the small checked dataset used by the
-no-key demonstration. It is not part of the extraction logic, and every uploaded PDF goes through the
-same general pipeline.
+API keys come from the local environment and are not stored in the repository. The bundled JSON is
+only the checked no-key demonstration; uploaded PDFs still use the general pipeline.
 
 ### Tool disclosure
 
