@@ -78,6 +78,4 @@ def test_demo_loader_replaces_outdated_failure_copy(tmp_path: Path) -> None:
 
     failures = store.failures()
     assert len(failures) == 1
-    assert (
-        failures[0]["message"] == "Could not safely match the merchandise-exports value to a year."
-    )
+    assert failures[0]["message"] == "The merchandise exports value could not be matched to a year."

@@ -4,15 +4,15 @@ Use a screen recording with voice narration.
 
 ## 0:00 to 0:18 | Introduction
 
-Show the Relationships page.
+Show the Comparisons page.
 
 “Hi, this is Proofline. I built it to compare claims across financial PDFs while keeping every
-accepted fact tied to the exact page and words that support it. I will show how it handles agreement,
+result tied to the exact page and words that support it. I will show how it handles agreement,
 conflict, reconciliation, and a failed extraction, then briefly show the API and repository.”
 
 ## 0:18 to 0:38 | Documents and pipeline
 
-Open Documents, then return to Relationships.
+Open Documents, then return to Comparisons.
 
 “This demonstration uses excerpts from three public reports on the Indian economy. Pages remain
 separate during extraction. Repeat uploads are skipped, and interrupted runs continue from their
@@ -47,7 +47,7 @@ revision, not a direct contradiction.”
 Open Needs review and select the borderless-table failure.
 
 “This table split a decimal value across lines, so the year-to-value mapping was ambiguous. Proofline
-shows the issue for review and keeps it out of Facts.”
+does not present the value as reliable. It shows the issue here so a person can review it.”
 
 ## 2:16 to 2:34 | Fact register
 
@@ -66,7 +66,7 @@ includes tests, deployment configuration, and the evaluation notes.”
 
 ## 2:48 to 2:55 | Close
 
-Return to Relationships.
+Return to Comparisons.
 
 “The main remaining gaps are scanned PDFs and unusually structured tables. For supported documents,
 the full loop works from extraction and evidence checking to comparison and source review.”

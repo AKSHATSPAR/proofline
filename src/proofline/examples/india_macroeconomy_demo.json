@@ -241,13 +241,13 @@
       "stage": "table_header_binding",
       "page_number": 5,
       "chunk_index": 1,
-      "message": "Could not safely match the merchandise-exports value to a year.",
+      "message": "The merchandise exports value could not be matched to a year.",
       "recoverable": true,
       "details": {
         "candidate": "Merchandise exports were USD 456.1 billion in FY2022/23",
         "extracted_fragment": "Merchandise exports ... 429.2 456. 1 441. 4 441. 8 416. 3 409.5",
-        "handling": "This result is shown for review and was not added to Facts.",
-        "next_step": "Review the table manually or retry after adding support for borderless tables."
+        "handling": "The source does not establish which year belongs to this value, so it requires a manual check.",
+        "next_step": "Check the row manually. To automate this case, the parser needs to preserve column positions in borderless tables."
       }
     }
   ]

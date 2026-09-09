@@ -42,7 +42,20 @@ function periodLabel(fact) {
 }
 
 function shortName(name) {
-  return String(name).replace(/^\d+-/, "").replace(/-excerpt\.pdf$/i, "").replace(/\.pdf$/i, "").replaceAll("-", " ");
+  const minorWords = new Set(["a", "an", "and", "for", "in", "of", "on", "the", "to"]);
+  const acronyms = new Map([["imf", "IMF"], ["rbi", "RBI"], ["gdp", "GDP"], ["iv", "IV"]]);
+  return String(name)
+    .replace(/^\d+-/, "")
+    .replace(/-excerpt\.pdf$/i, "")
+    .replace(/\.pdf$/i, "")
+    .replaceAll("-", " ")
+    .replace(/\b(20\d{2})\s(\d{2})\b/g, "$1-$2")
+    .split(" ")
+    .map((word, index) => acronyms.get(word.toLowerCase())
+      || (index > 0 && minorWords.has(word.toLowerCase())
+        ? word.toLowerCase()
+        : `${word.charAt(0).toUpperCase()}${word.slice(1)}`))
+    .join(" ");
 }
 
 function diagnosticValue(value) {
@@ -168,22 +181,30 @@ function renderFacts() {
   const facts = state.facts.filter((fact) => [fact.subject, fact.predicate, fact.object_text, fact.document_name, ...fact.scope].join(" ").toLowerCase().includes(query));
   byId("factsTable").innerHTML = facts.map((fact) => `
     <tr>
-      <td><button class="fact-link" data-evidence="${esc(fact.id)}">${esc(fact.subject)} · ${esc(fact.predicate)}</button>${scopeNote(fact)}</td>
-      <td><strong>${esc(fact.object_text)}</strong>${normalizedValueNote(fact)}</td>
-      <td>${esc(periodLabel(fact))}<span class="td-sub">${esc(fact.modality)}</span></td>
-      <td>${esc(shortName(fact.document_name))}<span class="td-sub">PDF page ${fact.page_number}</span></td>
+      <td data-label="Claim"><button class="fact-link" data-evidence="${esc(fact.id)}">${esc(fact.subject)} · ${esc(fact.predicate)}</button>${scopeNote(fact)}</td>
+      <td data-label="Value"><strong>${esc(fact.object_text)}</strong>${normalizedValueNote(fact)}</td>
+      <td data-label="Period">${esc(periodLabel(fact))}<span class="td-sub">${esc(fact.modality)}</span></td>
+      <td data-label="Source">${esc(shortName(fact.document_name))}<span class="td-sub">PDF page ${fact.page_number}</span></td>
     </tr>`).join("") || `<tr><td colspan="4" class="empty-state">No facts match your search.</td></tr>`;
   byId("factsTable").querySelectorAll("[data-evidence]").forEach((button) => button.addEventListener("click", () => openEvidence(button.dataset.evidence)));
 }
 
 function renderDocuments() {
-  byId("documentsGrid").innerHTML = state.documents.map((document) => `
-    <article class="document-card">
-      <div class="doc-icon">PDF</div>
-      <h3>${esc(document.name)}</h3>
-      <div class="document-meta"><span>${document.page_count} ${document.page_count === 1 ? "page" : "pages"}</span><span>·</span><span>${document.fact_count} source-backed ${document.fact_count === 1 ? "fact" : "facts"}</span><span>·</span><span>${esc(documentStatusLabel(document.status))}</span></div>
-      <div class="source-status ${document.source_available ? "" : "unavailable"}">${document.source_available ? "● Original PDF available for page review" : "○ Original PDF unavailable"}</div>
-    </article>`).join("");
+  byId("documentsGrid").innerHTML = state.documents.map((document) => {
+    const status = document.status === "ready"
+      ? ""
+      : `<span>·</span><span>${esc(documentStatusLabel(document.status))}</span>`;
+    const sourceAction = document.source_available
+      ? `<a class="source-status" href="/api/documents/${encodeURIComponent(document.id)}/file" target="_blank" rel="noreferrer">Open original PDF ↗</a>`
+      : `<div class="source-status unavailable">Original PDF unavailable</div>`;
+    return `
+      <article class="document-card">
+        <div class="doc-icon">PDF</div>
+        <h3>${esc(shortName(document.name))}</h3>
+        <div class="document-meta"><span>${document.page_count} ${document.page_count === 1 ? "page" : "pages"}</span><span>·</span><span>${document.fact_count} source-backed ${document.fact_count === 1 ? "fact" : "facts"}</span>${status}</div>
+        ${sourceAction}
+      </article>`;
+  }).join("");
 }
 
 function renderFailures() {
@@ -197,9 +218,10 @@ function renderFailures() {
     const issueSummary = diagnosticIssues(details);
     return `
       <article class="failure-card">
-        <div><span class="failure-tag">${esc(stageLabel(failure.stage))} · PDF p. ${esc(failure.page_number || "-")}</span><h3>${esc(failure.message)}</h3><p>${esc(details.handling || "This item was not added to Facts.")}</p></div>
+        <div><span class="failure-tag">${esc(stageLabel(failure.stage))}</span><h3>${esc(failure.message)}</h3></div>
         <div class="failure-details"><dl>
-          ${diagnosticRow("Candidate", details.candidate)}
+          ${diagnosticRow("Document", `${shortName(failure.document_name)} · PDF page ${failure.page_number || "not known"}`)}
+          ${diagnosticRow("Extracted value", details.candidate)}
           ${diagnosticRow("Source text", details.extracted_fragment || details.quote)}
           ${diagnosticRow("Why it needs review", issueSummary)}
           ${diagnosticRow("Next step", details.next_step || "Review the source or try the document again.")}
@@ -212,14 +234,13 @@ function renderSummary() {
   byId("metricDocuments").textContent = state.summary.documents;
   byId("metricFacts").textContent = state.summary.facts;
   byId("metricRelations").textContent = state.summary.relations;
-  byId("metricFailures").textContent = state.summary.failures;
 }
 
 function openEvidence(factId) {
   const fact = state.facts.find((item) => item.id === factId);
   if (!fact) return;
   byId("evidenceTitle").textContent = `${fact.subject} · ${fact.predicate}`;
-  byId("evidenceMeta").innerHTML = [fact.document_name, `PDF page ${fact.page_number}`, periodLabel(fact), fact.modality].map((item) => `<span>${esc(item)}</span>`).join("");
+  byId("evidenceMeta").innerHTML = [shortName(fact.document_name), `PDF page ${fact.page_number}`, periodLabel(fact), fact.modality].map((item) => `<span>${esc(item)}</span>`).join("");
   byId("evidenceQuote").textContent = `“${fact.evidence_quote}”`;
   const sourceContext = fact.extraction_note || visibleScope(fact).join(" · ");
   byId("evidenceContext").innerHTML = sourceContext
@@ -241,24 +262,20 @@ async function refresh() {
     Object.assign(state, { config, summary, documents, facts, relations, failures });
     renderSummary(); renderRelationships(); renderFacts(); renderDocuments(); renderFailures();
     byId("datasetBadge").textContent = {
-      curated_source_verified: "VERIFIED DEMO WITH ORIGINAL SOURCES",
+      curated_source_verified: "DEMO WITH ORIGINAL SOURCES",
       mixed: "DEMO + YOUR DOCUMENTS",
       workspace: "YOUR DOCUMENTS",
     }[config.dataset_origin] || "DOCUMENTS UNAVAILABLE";
     byId("datasetName").textContent = config.dataset_name.toUpperCase();
-    byId("datasetStatus").textContent = config.demo_only ? "Sources included" : "Ready";
-    byId("datasetNote").textContent = config.demo_only
-      ? "Open a source below to inspect its original page and highlighted quote."
-      : "Open any relationship or fact to inspect its source page.";
     byId("processingMode").className = `mode-note ${config.live_processing ? "" : "offline"}`;
     byId("processingMode").textContent = config.demo_only
-      ? "The hosted demo is read-only. Follow the setup guide to process PDFs on your computer."
+      ? "This public demo is read-only. The setup guide shows how to process documents locally."
       : config.live_processing
-        ? "PDF processing is ready. Documents already seen will not be processed twice."
-        : `Add ${config.credential} to .env and restart the server to process new PDFs.`;
-    byId("uploadTitle").textContent = config.demo_only ? "Use your PDFs locally" : "Use your PDFs";
+        ? "Choose one or more PDFs. Files already processed will be skipped."
+        : "Document processing is not configured. Follow the setup guide, then restart the server.";
+    byId("uploadTitle").textContent = config.demo_only ? "Process your own PDFs" : "Process your PDFs";
     byId("pdfFiles").disabled = config.demo_only;
-    byId("dropZone").classList.toggle("disabled", config.demo_only);
+    byId("dropZone").classList.toggle("hidden", config.demo_only);
     byId("dropTitle").textContent = config.demo_only
       ? "Uploads are disabled in the public demonstration"
       : "Drop PDFs here or click to browse";
@@ -297,6 +314,8 @@ function switchView(name) {
     tab.setAttribute("aria-pressed", selected);
   });
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
+  byId("overview").classList.toggle("hidden", name !== "relationships");
+  document.querySelector(".workspace").classList.toggle("compact", name !== "relationships");
 }
 
 function showToast(message) {
@@ -355,7 +374,14 @@ async function processUploads() {
 document.querySelectorAll(".nav-tab").forEach((tab) => tab.addEventListener("click", () => {
   state.viewInitialized = true;
   switchView(tab.dataset.view);
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }));
+document.querySelector(".brand").addEventListener("click", (event) => {
+  event.preventDefault();
+  state.viewInitialized = true;
+  switchView("relationships");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 document.querySelectorAll("#relationFilters .filter").forEach((button) => button.addEventListener("click", () => {
   state.relationFilter = button.dataset.filter;
   document.querySelectorAll("#relationFilters .filter").forEach((item) => item.classList.toggle("active", item === button));
