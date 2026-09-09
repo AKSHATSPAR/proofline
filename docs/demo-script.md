@@ -1,72 +1,84 @@
-# Proofline demo script (target: 2:40 to 2:55)
+# Proofline demo script (target: 2:45 to 2:55)
 
-Use a screen recording with voice narration.
+Record the screen with microphone narration. A camera is not required.
 
-## 0:00 to 0:18 | Introduction
+Before recording, keep these ready:
 
-Show the Comparisons page.
+- the local app at `http://127.0.0.1:8000`;
+- `output/video-demo-delhivery-page-8.pdf` in the file picker;
+- the API page at `http://127.0.0.1:8000/docs`;
+- the GitHub repository; and
+- the deployed app at `https://proofline-y1ln.onrender.com`.
 
-“Hi, this is Proofline. I built it to compare claims across financial PDFs while keeping every
-result tied to the exact page and words that support it. I will show how it handles agreement,
-conflict, reconciliation, and a failed extraction, then briefly show the API and repository.”
+If document processing waits for the free service, pause the recording after the progress indicator
+appears and resume when it completes. Do not spend the three-minute limit showing an idle screen.
 
-## 0:18 to 0:38 | Documents and pipeline
+## 0:00 to 0:14 | Introduction
 
-Open Documents, then return to Comparisons.
+Show the local Comparisons page.
 
-“This demonstration uses excerpts from three public reports on the Indian economy. Pages remain
-separate during extraction. Repeat uploads are skipped, and interrupted runs continue from their
-unfinished chunks. If a quote cannot be verified on its claimed page, the fact is rejected.”
+“Hi, this is Proofline. It compares facts across financial PDFs while keeping every result linked to
+its source page. I will process a real PDF, then show agreement, contradiction, reconciliation, and
+a result requiring review.”
 
-## 0:38 to 1:08 | Corroboration
+## 0:14 to 0:40 | Process a real PDF
 
-Filter to Corroborates and open the evidence for the 6.5% FY2024/25 result.
+Click **Use your PDFs**, select `video-demo-delhivery-page-8.pdf`, and click **Process PDFs**.
 
-“The RBI and IMF both report real GDP growth of 6.5% for the same period. The evidence drawer shows
-the source, page, quote, and highlighted words on the original PDF. The highlight is found only after
-the quote and structured fields pass deterministic checks.”
+“This is an original page from the supplied Delhivery presentation. I am using one page to keep the
+recording short, but the same pipeline was tested on the complete 27-page document. A result is
+accepted only when its quote and important fields match the source.”
 
-## 1:08 to 1:32 | Contradiction
+## 0:40 to 0:56 | Inspect the result
 
-Filter to Contradicts.
+Open **Documents**, then **Facts**, and select one result from the uploaded PDF.
 
-“For FY2025/26, the RBI forecast is 6.5% and the IMF forecast is 6.6%. These claims refer to the same
-metric and period but give different values, so Proofline marks a likely contradiction and keeps both
-sources available for review.”
+“The document now appears in the source list. Each fact includes its value, period, document, and PDF
+page. Opening one shows the supporting quote and highlights it on the original page.”
 
-## 1:32 to 1:56 | Reconciliation
+## 0:56 to 1:19 | Corroboration
 
-Filter to Reconciles.
+Open **Comparisons**, select **Corroborates**, and open one source page briefly.
 
-“Here, 6.4% and 6.5% look inconsistent at first. The Economic Survey uses the First Advance Estimate,
-while the later RBI report uses the Second Advance Estimate. Proofline therefore explains this as a
+“The RBI and IMF both report India’s real GDP growth as 6.5 percent for the same financial year.
+Their wording differs, but the metric, period, and value match. Both source quotes and pages remain
+available for verification.”
+
+## 1:19 to 1:41 | Contradiction
+
+Select **Contradicts** and show both values and quotes.
+
+“Both reports forecast the same metric and period, but the RBI reports 6.5 percent while the IMF
+reports 6.6 percent. Because the values differ, this is a likely contradiction.”
+
+## 1:41 to 2:03 | Reconciliation
+
+Select **Reconciles** and show the explanation and evidence.
+
+“Context explains this difference. The Economic Survey uses the First Advance Estimate, while the
+later RBI report uses the Second Advance Estimate. The change from 6.4 to 6.5 percent is therefore a
 revision, not a direct contradiction.”
 
-## 1:56 to 2:16 | Failure
+## 2:03 to 2:24 | Controlled failure
 
-Open Needs review and select the borderless-table failure.
+Open **Needs review** and show the table-layout issue.
 
-“This table split a decimal value across lines, so the year-to-value mapping was ambiguous. Proofline
-does not present the value as reliable. It shows the issue here so a person can review it.”
+“A borderless table split 456.1 across separate pieces of text, so it could not be matched reliably
+to a year. Proofline does not present it as reliable. It preserves the attempted value, source text,
+and next step for manual review.”
 
-## 2:16 to 2:34 | Fact register
+## 2:24 to 2:48 | Backend, repository, and deployment
 
-Open Facts and one evidence drawer.
+Open `/docs`, briefly show the GitHub repository, and then open the deployed app.
 
-“The Facts page keeps each claim beside its period and source. Opening one takes me back to the exact
-quote and original PDF page instead of showing only a summary.”
+“The interface and API share a FastAPI service and SQLite store. The API covers uploads, results, and
+source pages. GitHub contains the implementation, tests, evaluation notes, and deployment setup. The
+same version is available at this deployed link. It is read-only to protect the processing key, while
+new PDFs can be processed locally.”
 
-## 2:34 to 2:48 | API and implementation
+## 2:48 to 2:56 | Close
 
-Open `/docs`, then briefly show the repository tree on GitHub.
+Return to the Comparisons page.
 
-“The browser interface and API use the same FastAPI service and SQLite store. The API covers uploads,
-job status, facts, relationships, review issues, and source pages. The repository also
-includes tests, deployment configuration, and the evaluation notes.”
-
-## 2:48 to 2:55 | Close
-
-Return to Comparisons.
-
-“The main remaining gaps are scanned PDFs and unusually structured tables. For supported documents,
-the full loop works from extraction and evidence checking to comparison and source review.”
+“That is the workflow from a real PDF to grounded facts, source review, cross-document comparison,
+and transparent handling of uncertainty.”

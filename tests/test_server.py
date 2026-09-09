@@ -1,8 +1,9 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-from proofline.server import create_app
+from proofline.server import JobManager, create_app
 from proofline.store import Store
 
 
@@ -105,3 +106,45 @@ def test_processed_documents_use_a_generic_workspace_name(tmp_path: Path, monkey
 
     assert config["dataset_origin"] == "workspace"
     assert config["dataset_name"] == "Document workspace"
+
+
+def test_background_job_completes_after_serializing_ingestion_results(
+    tmp_path: Path, monkeypatch
+) -> None:
+    class FakeLayer:
+        def __init__(self, store, extractor) -> None:
+            pass
+
+        def ingest_pdf(self, path, progress):
+            progress(path.name, 1, 1)
+            return SimpleNamespace(status="ready", document_id="document-1")
+
+        def discover_relations(self, max_pairs: int) -> int:
+            return 2
+
+    monkeypatch.setattr("proofline.server.KnowledgeLayer", FakeLayer)
+    monkeypatch.setattr("proofline.server.create_extractor", lambda **_: object())
+    manager = JobManager()
+    manager._jobs["job-1"] = {
+        "id": "job-1",
+        "status": "queued",
+        "message": "Waiting to process",
+        "current": 0,
+        "total": 0,
+        "results": [],
+    }
+
+    manager._run(
+        "job-1",
+        [tmp_path / "report.pdf"],
+        Store(tmp_path / "job.db"),
+        provider="gemini",
+        model="gemini-test",
+    )
+
+    job = manager.get("job-1")
+    assert job is not None
+    assert job["status"] == "complete"
+    assert job["message"] == "Your documents are ready"
+    assert job["relations_added"] == 2
+    assert job["results"] == [{"status": "ready", "document_id": "document-1"}]
