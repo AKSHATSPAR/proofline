@@ -68,7 +68,7 @@ class JobManager:
             self._jobs[job_id].update(values)
 
     def _run(self, job_id: str, paths: list[Path], store: Store, provider: str, model: str) -> None:
-        self._update(job_id, status="running", message="Starting page-aware extraction")
+        self._update(job_id, status="running", message="Reading PDF pages")
         try:
             layer = KnowledgeLayer(store, create_extractor(provider=provider, model=model))
             results = []
@@ -76,7 +76,7 @@ class JobManager:
             def progress(name: str, current: int, total: int) -> None:
                 self._update(
                     job_id,
-                    message=f"Extracting grounded facts from {name}",
+                    message=f"Finding source-backed facts in {name}",
                     current=current,
                     total=total,
                 )
@@ -86,7 +86,7 @@ class JobManager:
                 results.append(result.__dict__)
             self._update(
                 job_id,
-                message="Comparing cross-document candidates",
+                message="Comparing facts across documents",
                 current=0,
                 total=0,
             )
@@ -95,7 +95,7 @@ class JobManager:
             message = (
                 f"Finished with issues in {issue_count} of {len(results)} documents"
                 if issue_count
-                else "Knowledge layer updated"
+                else "Your documents are ready"
             )
             self._update(
                 job_id,

@@ -10,7 +10,7 @@ public product pages, documentation, and source repositories.
 | [LlamaExtract API](https://developers.api.llamaindex.ai/api/resources/extract/methods/get/) | Its public API includes schemas, source citations, confidence controls, target pages, and versioned configurations. | Proofline keeps a strict schema, confidence on every fact, and the source page, while keeping the model provider replaceable. |
 | [Docling](https://github.com/docling-project/docling) | It treats layout and provenance as real document data. It can also add OCR and local models when needed. | I borrowed the bounding-box idea using PyMuPDF. I did not add the much larger parsing stack before the failures justified it. |
 | [Microsoft GraphRAG default dataflow](https://github.com/microsoft/graphrag/blob/main/docs/index/default_dataflow.md) | Claims and relationships are stored separately and linked back to source text. Its docs also warn that claim extraction needs tuning. | Proofline stores facts and relationships separately, keeps source links, and records uncertain work as a failure. |
-| [ExtractBench](https://github.com/run-llama/ExtractBench) | It measures value accuracy, page grounding, and word-level grounding separately. Failed documents still count against the result. | I added a local grounding audit, visible word highlights, and a failure ledger. |
+| [ExtractBench](https://github.com/run-llama/ExtractBench) | It measures value accuracy, page grounding, and word-level grounding separately. Failed documents still count against the result. | I added a local grounding audit, visible word highlights, and a separate list of results that need review. |
 
 ## Why I kept the stack small
 

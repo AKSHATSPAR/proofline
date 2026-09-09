@@ -91,6 +91,7 @@ def load_demo(store: Store, path: Path = DEMO_PATH) -> bool:
             chunk_index=failure.get("chunk_index"),
         ):
             continue
+        store.clear_document_failures(document_id, failure["stage"])
         store.add_failure(
             document_id,
             failure["stage"],

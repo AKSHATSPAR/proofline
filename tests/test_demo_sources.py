@@ -64,3 +64,20 @@ def test_demo_loader_repairs_missing_rows_without_duplicating_failures(tmp_path:
     assert load_demo(store) is False
 
     assert store.summary() == first_summary
+
+
+def test_demo_loader_replaces_outdated_failure_copy(tmp_path: Path) -> None:
+    store = Store(tmp_path / "demo.db")
+    outdated = json.loads(DEMO_PATH.read_text())
+    outdated["failures"][0]["message"] = "Outdated failure message"
+    outdated_path = tmp_path / "outdated-demo.json"
+    outdated_path.write_text(json.dumps(outdated))
+
+    load_demo(store, outdated_path)
+    assert load_demo(store) is True
+
+    failures = store.failures()
+    assert len(failures) == 1
+    assert (
+        failures[0]["message"] == "Could not safely match the merchandise-exports value to a year."
+    )

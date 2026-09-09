@@ -14,15 +14,15 @@
         <span class="brand-mark">P</span>
         <span>Proofline</span>
       </a>
-      <nav class="nav-tabs" aria-label="Knowledge layer views">
+      <nav class="nav-tabs" aria-label="Proofline views">
         <button class="nav-tab active" data-view="relationships" aria-pressed="true">Relationships</button>
         <button class="nav-tab" data-view="facts" aria-pressed="false">Facts</button>
         <button class="nav-tab" data-view="documents" aria-pressed="false">Documents</button>
-        <button class="nav-tab" data-view="diagnostics" aria-pressed="false">Diagnostics</button>
+        <button class="nav-tab" data-view="diagnostics" aria-pressed="false">Needs review</button>
       </nav>
       <div class="top-actions">
         <a class="api-link" href="/docs" target="_blank" rel="noreferrer">API docs ↗</a>
-        <button class="button primary" id="openUpload">Add PDFs</button>
+        <button class="button primary" id="openUpload">Use your PDFs</button>
       </div>
     </header>
 
@@ -30,8 +30,8 @@
       <section class="hero">
         <div>
           <p class="eyebrow hero-eyebrow">
-            FACT KNOWLEDGE LAYER / <span id="datasetName">DOCUMENT WORKSPACE</span>
-            <span class="dataset-badge" id="datasetBadge">CURATED, SOURCE-VERIFIED SAMPLE</span>
+            FACT KNOWLEDGE LAYER / <span id="datasetName">INDIA MACROECONOMY</span>
+            <span class="dataset-badge" id="datasetBadge">VERIFIED DEMO WITH ORIGINAL SOURCES</span>
           </p>
           <h1>Every claim has a page.<br /><span>Every disagreement has a reason.</span></h1>
           <p class="hero-copy">
@@ -41,32 +41,31 @@
         </div>
         <div class="pipeline-card">
           <div class="pipeline-head">
-            <span>Pipeline status</span>
-            <span class="live-dot"><i></i><span id="datasetStatus">Curated review set</span></span>
+            <span>What you can inspect</span>
+            <span class="live-dot"><i></i><span id="datasetStatus">Sources included</span></span>
           </div>
-          <div class="pipeline-step done"><b>01</b><span>Page-aware extraction</span><em>Done</em></div>
-          <div class="pipeline-step done"><b>02</b><span>Evidence validation</span><em>Done</em></div>
-          <div class="pipeline-step done"><b>03</b><span>Cross-source reasoning</span><em>Done</em></div>
-          <div class="quality-line"><span>Page evidence gate</span><strong>Fail closed</strong></div>
-          <div class="quality-line field-quality"><span>Structured field checks</span><strong id="fieldCoverage">Checking…</strong></div>
-          <div class="quality-line anchor-quality"><span>Word-level anchors</span><strong id="wordAnchorCoverage">Checking…</strong></div>
-          <p class="pipeline-note" id="datasetNote">These reviewed results are preloaded from the bundled source PDFs.</p>
+          <div class="pipeline-step done"><b>01</b><span>Claim and source page</span><em>Linked</em></div>
+          <div class="pipeline-step done"><b>02</b><span>Exact words on the PDF</span><em>Highlighted</em></div>
+          <div class="pipeline-step done"><b>03</b><span>Agreement or conflict</span><em>Explained</em></div>
+          <div class="quality-line"><span>Unsupported claims</span><strong>Kept out of Facts</strong></div>
+          <div class="quality-line field-quality"><span>Ambiguous results</span><strong>Shown under Needs review</strong></div>
+          <p class="pipeline-note" id="datasetNote">Open a source below to inspect its original page and highlighted quote.</p>
         </div>
       </section>
 
       <section class="metric-grid" aria-label="Knowledge layer summary">
-        <article class="metric"><span>Documents</span><strong id="metricDocuments">-</strong><small>in this layer</small></article>
-        <article class="metric"><span>Grounded facts</span><strong id="metricFacts">-</strong><small>page verified</small></article>
-        <article class="metric accent"><span>Relationships</span><strong id="metricRelations">-</strong><small>explained links</small></article>
-        <article class="metric"><span>Flagged failures</span><strong id="metricFailures">-</strong><small>kept out of facts</small></article>
+        <article class="metric"><span>Documents</span><strong id="metricDocuments">-</strong><small>source files</small></article>
+        <article class="metric"><span>Source-backed facts</span><strong id="metricFacts">-</strong><small>with original pages</small></article>
+        <article class="metric accent"><span>Comparisons</span><strong id="metricRelations">-</strong><small>across reports</small></article>
+        <article class="metric"><span>Needs review</span><strong id="metricFailures">-</strong><small>not added to facts</small></article>
       </section>
 
       <section class="workspace">
         <div id="relationshipsView" class="view active">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">REVIEW QUEUE</p>
-              <h2>Cross-document relationships</h2>
+              <p class="eyebrow">DOCUMENT COMPARISON</p>
+              <h2>Where the reports agree and differ</h2>
             </div>
             <div class="filter-group" id="relationFilters" aria-label="Filter relationships">
               <button class="filter active" data-filter="all">All</button>
@@ -80,12 +79,12 @@
 
         <div id="factsView" class="view">
           <div class="section-heading">
-            <div><p class="eyebrow">FACT REGISTER</p><h2>Grounded claims</h2></div>
-            <label class="search"><span aria-hidden="true">⌕</span><input id="factSearch" type="search" aria-label="Search grounded facts" placeholder="Search subject, metric, source..." /></label>
+            <div><p class="eyebrow">SOURCE-BACKED FACTS</p><h2>Facts found in the documents</h2></div>
+            <label class="search"><span aria-hidden="true">⌕</span><input id="factSearch" type="search" aria-label="Search facts" placeholder="Search subject, metric, source..." /></label>
           </div>
           <div class="table-shell">
             <table>
-              <thead><tr><th>Claim</th><th>Value</th><th>Period</th><th>Source</th><th>Review signal</th></tr></thead>
+              <thead><tr><th>Claim</th><th>Value</th><th>Period</th><th>Source</th></tr></thead>
               <tbody id="factsTable"></tbody>
             </table>
           </div>
@@ -98,10 +97,10 @@
 
         <div id="diagnosticsView" class="view">
           <div class="section-heading">
-            <div><p class="eyebrow">FAILURE LEDGER</p><h2>What the system refused to guess</h2></div>
-            <span class="guardrail-badge">Fail closed by default</span>
+            <div><p class="eyebrow">NEEDS REVIEW</p><h2>What the system refused to guess</h2></div>
+            <span class="guardrail-badge">Not included as facts</span>
           </div>
-          <p class="section-intro">Failures remain inspectable, but are never promoted into the fact layer without grounded evidence.</p>
+          <p class="section-intro">These items stay separate because their source evidence was incomplete or ambiguous.</p>
           <div id="failureList" class="failure-list"></div>
         </div>
       </section>
@@ -109,11 +108,11 @@
 
     <dialog id="uploadDialog" class="modal" aria-labelledby="uploadTitle">
       <form method="dialog" class="modal-card" id="uploadForm">
-        <div class="modal-head"><div><p class="eyebrow">INCREMENTAL INGESTION</p><h2 id="uploadTitle">Add PDF sources</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></div>
+        <div class="modal-head"><div><p class="eyebrow">USE YOUR OWN DOCUMENTS</p><h2 id="uploadTitle">Use your PDFs</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></div>
         <p id="processingMode" class="mode-note"></p>
         <label class="drop-zone" id="dropZone">
           <input id="pdfFiles" type="file" accept="application/pdf,.pdf" multiple />
-          <span class="upload-icon">↑</span><strong id="dropTitle">Drop PDFs here or click to browse</strong><small id="dropHint">Up to 50 MB each. Existing files are skipped by content hash.</small>
+          <span class="upload-icon">↑</span><strong id="dropTitle">Drop PDFs here or click to browse</strong><small id="dropHint">Up to 50 MB each. A document already added will not be processed twice.</small>
         </label>
         <div id="selectedFiles" class="selected-files"></div>
         <div id="jobProgress" class="job-progress hidden"><div><span id="jobMessage">Preparing...</span><b id="jobPercent">0%</b></div><progress id="jobBar" max="100" value="0"></progress></div>

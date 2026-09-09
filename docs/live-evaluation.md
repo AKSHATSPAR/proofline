@@ -34,7 +34,7 @@ The request plan used page-labelled chunks followed by batched relationship comp
 
 The persisted result contained 45 accepted facts from the completed prospectus and annual-report
 work, all of which passed page anchoring, structured field validation, and word anchoring. Another
-164 candidates were quarantined. One cross-document relationship was accepted: automated sort
+164 candidates were rejected and recorded for review. One cross-document relationship was accepted: automated sort
 capacity increased from 3.70 million shipments per day on 31 December 2021 to 7.1 million on
 31 March 2024. The different dates explain why both values can be true, so the relationship was
 classified as a reconciliation and passed the deterministic relationship checks.
@@ -47,7 +47,7 @@ diagnostics and received only bounded retries.
 ## What this establishes
 
 These runs cover a complete unseen presentation, a multi-document incremental pass, exact evidence
-anchoring, layout-assisted table interpretation, quarantined failures, resumability, and one held-out
+anchoring, layout-assisted table interpretation, visible failures, resumability, and one held-out
 relationship. They do not constitute a statistically meaningful accuracy benchmark. A larger
 labelled relationship set is still needed to measure retrieval recall and relationship precision.
 

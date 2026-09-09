@@ -5,7 +5,6 @@ const state = {
   facts: [],
   relations: [],
   failures: [],
-  audit: null,
   relationFilter: "all",
   viewInitialized: false,
 };
@@ -46,12 +45,6 @@ function shortName(name) {
   return String(name).replace(/^\d+-/, "").replace(/-excerpt\.pdf$/i, "").replace(/\.pdf$/i, "").replaceAll("-", " ");
 }
 
-function confidenceLabel(value) {
-  if (value >= 0.85) return "High";
-  if (value >= 0.65) return "Medium";
-  return "Low";
-}
-
 function diagnosticValue(value) {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value !== "object") return String(value);
@@ -76,6 +69,18 @@ function diagnosticRow(label, value) {
   return text ? `<dt>${esc(label)}</dt><dd>${esc(text)}</dd>` : "";
 }
 
+function stageLabel(stage) {
+  return {
+    table_header_binding: "Table layout",
+    page_extraction: "Unreadable page",
+    extraction: "Processing error",
+    empty_extraction: "No facts found",
+    evidence_validation: "Source mismatch",
+    fact_validation: "Unsupported details",
+    relation_validation: "Comparison issue",
+  }[stage] || "Review issue";
+}
+
 function visibleScope(fact) {
   const predicate = fact.predicate.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   return fact.scope.filter((item) => {
@@ -91,18 +96,33 @@ function scopeNote(fact) {
 
 function normalizedValueNote(fact) {
   if (fact.normalized_value === null || fact.normalized_value === undefined) return "";
+  const sourceUnit = String(fact.unit || "").toLowerCase().replaceAll("per cent", "percent");
+  const normalizedUnit = String(fact.normalized_unit || "").toLowerCase().replaceAll("per cent", "percent");
+  if (fact.value_number !== null && fact.value_number !== undefined
+    && Number(fact.normalized_value) === Number(fact.value_number)
+    && sourceUnit === normalizedUnit) return "";
   const normalized = `${fact.normalized_value} ${fact.normalized_unit || ""}`.trim();
   if (!normalized || normalized.toLowerCase() === String(fact.object_text).trim().toLowerCase()) return "";
-  return `<span class="td-sub">Normalized: ${esc(normalized)}</span>`;
+  return `<span class="td-sub">Comparable value: ${esc(normalized)}</span>`;
+}
+
+function documentStatusLabel(status) {
+  return {
+    ready: "Ready",
+    partial: "Needs review",
+    empty: "No facts found",
+    rejected: "Needs review",
+    failed: "Processing failed",
+  }[status] || "Processing";
 }
 
 function relationTitle(relation) {
   const labels = {
-    corroborates: "Separate publications converge",
-    contradicts: "Same claim, incompatible values",
-    reconciles: "Context resolves the mismatch",
+    corroborates: "Sources agree on",
+    contradicts: "Sources report different values for",
+    reconciles: "Context explains the difference in",
   };
-  return `${labels[relation.relation_type]}: ${relation.left.predicate}`;
+  return `${labels[relation.relation_type]} ${relation.left.predicate}`;
 }
 
 function evidenceCard(fact, side) {
@@ -133,7 +153,6 @@ function renderRelationships() {
           <p>${esc(relation.explanation)}</p>
           <div class="context-chips">${relation.decisive_context.map((item) => `<span class="chip">${esc(item)}</span>`).join("")}</div>
         </div>
-        <div class="confidence"><strong>${confidenceLabel(relation.confidence)}</strong><span>review signal</span></div>
       </div>
       <div class="evidence-pair">
         ${evidenceCard(relation.left, "Source A")}
@@ -153,8 +172,7 @@ function renderFacts() {
       <td><strong>${esc(fact.object_text)}</strong>${normalizedValueNote(fact)}</td>
       <td>${esc(periodLabel(fact))}<span class="td-sub">${esc(fact.modality)}</span></td>
       <td>${esc(shortName(fact.document_name))}<span class="td-sub">PDF page ${fact.page_number}</span></td>
-      <td>${confidenceLabel(fact.confidence)}<div class="confidence-bar"><i style="width:${Math.round(fact.confidence * 100)}%"></i></div></td>
-    </tr>`).join("") || `<tr><td colspan="5" class="empty-state">No facts match your search.</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="4" class="empty-state">No facts match your search.</td></tr>`;
   byId("factsTable").querySelectorAll("[data-evidence]").forEach((button) => button.addEventListener("click", () => openEvidence(button.dataset.evidence)));
 }
 
@@ -163,15 +181,15 @@ function renderDocuments() {
     <article class="document-card">
       <div class="doc-icon">PDF</div>
       <h3>${esc(document.name)}</h3>
-      <div class="document-meta"><span>${document.page_count} ${document.page_count === 1 ? "page" : "pages"}</span><span>·</span><span>${document.fact_count} grounded ${document.fact_count === 1 ? "fact" : "facts"}</span><span>·</span><span>${esc(document.status)}</span></div>
-      <div class="source-status ${document.source_available ? "" : "unavailable"}">${document.source_available ? "● Original PDF available for page review" : "○ Sample evidence retained; PDF not bundled"}</div>
+      <div class="document-meta"><span>${document.page_count} ${document.page_count === 1 ? "page" : "pages"}</span><span>·</span><span>${document.fact_count} source-backed ${document.fact_count === 1 ? "fact" : "facts"}</span><span>·</span><span>${esc(documentStatusLabel(document.status))}</span></div>
+      <div class="source-status ${document.source_available ? "" : "unavailable"}">${document.source_available ? "● Original PDF available for page review" : "○ Original PDF unavailable"}</div>
     </article>`).join("");
 }
 
 function renderFailures() {
   const list = byId("failureList");
   if (!state.failures.length) {
-    list.innerHTML = `<div class="empty-state">No extraction or reasoning failures are recorded.</div>`;
+    list.innerHTML = `<div class="empty-state">No items currently need review.</div>`;
     return;
   }
   list.innerHTML = state.failures.map((failure) => {
@@ -179,12 +197,12 @@ function renderFailures() {
     const issueSummary = diagnosticIssues(details);
     return `
       <article class="failure-card">
-        <div><span class="failure-tag">${esc(failure.stage.replaceAll("_", " "))} · PDF p. ${esc(failure.page_number || "-")}</span><h3>${esc(failure.message)}</h3><p>${esc(details.handling || "The candidate was retained as a diagnostic and excluded from accepted facts.")}</p></div>
+        <div><span class="failure-tag">${esc(stageLabel(failure.stage))} · PDF p. ${esc(failure.page_number || "-")}</span><h3>${esc(failure.message)}</h3><p>${esc(details.handling || "This item was not added to Facts.")}</p></div>
         <div class="failure-details"><dl>
           ${diagnosticRow("Candidate", details.candidate)}
           ${diagnosticRow("Source text", details.extracted_fragment || details.quote)}
-          ${diagnosticRow("Validation", issueSummary)}
-          ${diagnosticRow("Next step", details.next_step || "Inspect and retry with improved parsing.")}
+          ${diagnosticRow("Why it needs review", issueSummary)}
+          ${diagnosticRow("Next step", details.next_step || "Review the source or try the document again.")}
         </dl></div>
       </article>`;
   }).join("");
@@ -201,11 +219,14 @@ function openEvidence(factId) {
   const fact = state.facts.find((item) => item.id === factId);
   if (!fact) return;
   byId("evidenceTitle").textContent = `${fact.subject} · ${fact.predicate}`;
-  byId("evidenceMeta").innerHTML = [fact.document_name, `PDF page ${fact.page_number}`, periodLabel(fact), `${confidenceLabel(fact.confidence)} extraction signal`, `Method: ${fact.extraction_method}`].map((item) => `<span>${esc(item)}</span>`).join("");
+  byId("evidenceMeta").innerHTML = [fact.document_name, `PDF page ${fact.page_number}`, periodLabel(fact), fact.modality].map((item) => `<span>${esc(item)}</span>`).join("");
   byId("evidenceQuote").textContent = `“${fact.evidence_quote}”`;
-  byId("evidenceContext").innerHTML = `<strong>Context:</strong> ${esc(fact.extraction_note || fact.scope.join(" · "))}<br /><strong>Comparison key:</strong> ${esc(fact.comparison_key)} · evidence match: ${esc(fact.evidence_status)}`;
+  const sourceContext = fact.extraction_note || visibleScope(fact).join(" · ");
+  byId("evidenceContext").innerHTML = sourceContext
+    ? `<strong>Source context:</strong> ${esc(sourceContext)}`
+    : "The quoted words appear on the source page shown below.";
   byId("pdfFrameWrap").innerHTML = fact.source_available
-    ? `<div class="page-preview-head"><span><i class="anchor-dot"></i>Exact source span highlighted</span><a href="/api/documents/${encodeURIComponent(fact.document_id)}/file#page=${fact.page_number}" target="_blank" rel="noreferrer">Open PDF ↗</a></div><img class="page-preview" alt="${esc(fact.document_name)} page ${fact.page_number} with the evidence quote highlighted" src="/api/facts/${encodeURIComponent(fact.id)}/evidence-image" />`
+    ? `<div class="page-preview-head"><span><i class="anchor-dot"></i>Exact words highlighted on the source page</span><a href="/api/documents/${encodeURIComponent(fact.document_id)}/file#page=${fact.page_number}" target="_blank" rel="noreferrer">Open PDF ↗</a></div><img class="page-preview" alt="${esc(fact.document_name)} page ${fact.page_number} with the evidence quote highlighted" src="/api/facts/${encodeURIComponent(fact.id)}/evidence-image" />`
     : `<div class="pdf-missing">The original PDF is not bundled with the repository. The verified quote, document name, and PDF page remain available as sample output.</div>`;
   const drawer = byId("evidenceDialog");
   drawer.querySelector(".drawer-card").scrollTop = 0;
@@ -214,33 +235,28 @@ function openEvidence(factId) {
 
 async function refresh() {
   try {
-    const [config, summary, documents, facts, relations, failures, audit] = await Promise.all([
-      api("/api/config"), api("/api/summary"), api("/api/documents"), api("/api/facts"), api("/api/relations"), api("/api/failures"), api("/api/audits/grounding"),
+    const [config, summary, documents, facts, relations, failures] = await Promise.all([
+      api("/api/config"), api("/api/summary"), api("/api/documents"), api("/api/facts"), api("/api/relations"), api("/api/failures"),
     ]);
-    Object.assign(state, { config, summary, documents, facts, relations, failures, audit });
+    Object.assign(state, { config, summary, documents, facts, relations, failures });
     renderSummary(); renderRelationships(); renderFacts(); renderDocuments(); renderFailures();
-    byId("fieldCoverage").textContent = `${audit.fields_grounded} / ${audit.accepted_facts} supported`;
-    byId("wordAnchorCoverage").textContent = audit.source_available
-      ? `${audit.word_anchored} / ${audit.source_available} located`
-      : "Sources unavailable";
     byId("datasetBadge").textContent = {
-      curated_source_verified: "CURATED, SOURCE-VERIFIED SAMPLE",
-      mixed: "CURATED SAMPLE + PROCESSED WORKSPACE",
-      workspace: "PROCESSED WORKSPACE",
-    }[config.dataset_origin] || "DATASET ORIGIN UNAVAILABLE";
+      curated_source_verified: "VERIFIED DEMO WITH ORIGINAL SOURCES",
+      mixed: "DEMO + YOUR DOCUMENTS",
+      workspace: "YOUR DOCUMENTS",
+    }[config.dataset_origin] || "DOCUMENTS UNAVAILABLE";
     byId("datasetName").textContent = config.dataset_name.toUpperCase();
-    byId("datasetStatus").textContent = config.demo_only ? "Curated review set" : "Workspace ready";
+    byId("datasetStatus").textContent = config.demo_only ? "Sources included" : "Ready";
     byId("datasetNote").textContent = config.demo_only
-      ? "These reviewed results are preloaded from the bundled source PDFs. Upload processing is available when the project runs locally."
-      : "Results shown here come from this workspace and retain their document, page, and extraction method.";
+      ? "Open a source below to inspect its original page and highlighted quote."
+      : "Open any relationship or fact to inspect its source page.";
     byId("processingMode").className = `mode-note ${config.live_processing ? "" : "offline"}`;
     byId("processingMode").textContent = config.demo_only
-      ? "This public demonstration is read only so a shared key cannot be exhausted. Clone the repository to process your own PDFs."
+      ? "The hosted demo is read-only. Follow the setup guide to process PDFs on your computer."
       : config.live_processing
-        ? `Live processing is enabled with ${config.provider}/${config.model}. Files are processed incrementally in the background.`
-        : `Curated demo mode is active. Set ${config.credential} in .env and restart the server to process new PDFs.`;
-    byId("openUpload").textContent = config.demo_only ? "Use your PDFs" : "Add PDFs";
-    byId("uploadTitle").textContent = config.demo_only ? "Process PDFs locally" : "Add PDF sources";
+        ? "PDF processing is ready. Documents already seen will not be processed twice."
+        : `Add ${config.credential} to .env and restart the server to process new PDFs.`;
+    byId("uploadTitle").textContent = config.demo_only ? "Use your PDFs locally" : "Use your PDFs";
     byId("pdfFiles").disabled = config.demo_only;
     byId("dropZone").classList.toggle("disabled", config.demo_only);
     byId("dropTitle").textContent = config.demo_only
@@ -248,7 +264,7 @@ async function refresh() {
       : "Drop PDFs here or click to browse";
     byId("dropHint").textContent = config.demo_only
       ? "Clone the repository and follow its setup instructions to process new documents."
-      : "Up to 50 MB each. Existing files are skipped by content hash.";
+      : "Up to 50 MB each. A document already added will not be processed twice.";
     byId("publicSetupLink").classList.toggle("hidden", !config.demo_only);
     byId("processFiles").classList.toggle("hidden", config.demo_only);
     byId("processFiles").textContent = "Process PDFs";
@@ -309,7 +325,7 @@ async function pollJob(jobId) {
       const issues = (job.results || []).filter((result) => result.status !== "ready");
       const resultNote = issues.length
         ? `${issues.length} document${issues.length === 1 ? "" : "s"} need review`
-        : `${job.relations_added || 0} relationships added`;
+        : `${job.relations_added || 0} comparisons added`;
       showToast(`Processing complete · ${resultNote}`);
       await refresh();
       setTimeout(() => byId("uploadDialog").close(), 700);

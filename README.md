@@ -103,7 +103,7 @@ the claimed PDF page. The model must return a verbatim quote and a one-based pag
 normalizes whitespace and checks the quote against the text from that page. It then checks the
 subject, metric, object, scope, comparison key, number, unit, period, date, modality, and any unit
 conversion against the quote, a bounded window around it, and the document identity. A failed check
-goes to Diagnostics with the rejected candidate and field-level reasons.
+appears under Needs review with the rejected candidate and field-level reasons.
 
 For facts that pass, Proofline finds the quote's coordinates and highlights the words in the source
 page. A small word-sequence fallback handles PDF quirks such as superscript footnote numbers. This
@@ -148,7 +148,7 @@ are treated as unknown, not as a match.
 | Corroboration | RBI Annual Report p. 8 and IMF Article IV p. 3 | Both report FY2024/25 real GDP growth of 6.5%. |
 | Likely contradiction | RBI Annual Report p. 17 and IMF Article IV p. 3 | FY2025/26 forecasts differ: 6.5% versus 6.6%. |
 | Reconciliation | Economic Survey p. 4 and RBI Annual Report p. 8 | 6.4% is the First Advance Estimate; 6.5% is the later Second Advance Estimate. |
-| Failure | IMF Article IV p. 5 | A borderless table split decimal values across lines, so the year-to-value binding remains ambiguous and the candidate is quarantined. |
+| Failure | IMF Article IV p. 5 | A borderless table split decimal values across lines, so the year-to-value match is ambiguous and the result remains under Needs review. |
 
 ### Storage and incremental behavior
 
@@ -163,16 +163,16 @@ keeps completed chunks and retries only unfinished ones.
 ### API
 
 The interactive `/docs` page covers PDF upload and job status, accepted facts and relationships,
-quarantined failures, extracted pages, evidence images, and the grounding audit.
+rejected extraction records, extracted pages, evidence images, and the grounding audit.
 
 ## Important Decisions and Trade-offs
 
 - One FastAPI process serves the API and browser interface, giving the reviewer one setup path.
 - SQLite is sufficient for this prototype. A graph database would add setup cost without improving
   extraction or evidence quality.
-- Evidence and field matching are deterministic. Relationship labels use a model, so each label
-  includes a qualitative review signal and explanation rather than presenting confidence as a
-  calibrated probability.
+- Evidence and field matching are deterministic. Relationship labels use a model and include an
+  explanation. Raw confidence remains available through the API, while the interface focuses on
+  inspectable source evidence instead of presenting it as a calibrated probability.
 - Evidence highlights come from words on the original PDF page. They are not generated coordinates.
 - Bounded chunks control request size. File hashes prevent duplicate extraction, chunk checkpoints
   make interrupted runs resumable, and temporary provider errors receive bounded retries. Partial,
@@ -181,7 +181,7 @@ quarantined failures, extracted pages, evidence images, and the grounding audit.
 ## Limitations and Next Steps
 
 - Borderless or multi-page tables and merged headers can still lose the connection between a label
-  and its value. The demo keeps one such failure in Diagnostics instead of guessing. Scanned PDFs
+  and its value. The demo keeps one such failure under Needs review instead of guessing. Scanned PDFs
   also need OCR before they can be read.
 - The metric alias set is intentionally small. A larger vocabulary or hybrid semantic index should
   be measured against labelled pairs before adoption.

@@ -168,8 +168,6 @@ h2 { font-size: clamp(26px, 3vw, 34px); line-height: 1.05; }
 .quality-line { border-radius: 10px; padding: 11px 13px; background: #edf6d9; display: flex; justify-content: space-between; font-size: 12px; margin-top: 8px; }
 .quality-line.field-quality { background: #e7eff9; }
 .quality-line.field-quality strong { color: #3d659c; }
-.quality-line.anchor-quality { background: #fff1df; }
-.quality-line.anchor-quality strong { color: #985314; }
 .pipeline-note { margin: 12px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 
 .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid rgba(21, 39, 31, 0.14); border-radius: 16px; overflow: hidden; background: var(--card); }
@@ -203,9 +201,6 @@ h2 { font-size: clamp(26px, 3vw, 34px); line-height: 1.05; }
 .relation-kind.reconciles { color: #76531a; background: var(--amber-bg); }
 .relation-copy h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -0.015em; }
 .relation-copy p { margin: 0; color: var(--muted); line-height: 1.55; font-size: 14px; }
-.confidence { text-align: right; }
-.confidence strong { display: block; font-family: Georgia, serif; font-size: 25px; font-weight: 500; }
-.confidence span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
 
 .context-chips { margin-top: 13px; display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-size: 10px; font-weight: 700; padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: #5f6d66; background: #fafaf6; }
@@ -229,8 +224,6 @@ tr:last-child td { border-bottom: 0; }
 .fact-link { border: 0; padding: 0; text-align: left; background: transparent; color: var(--ink); cursor: pointer; font-weight: 720; }
 .fact-link:hover { text-decoration: underline; }
 .td-sub { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.confidence-bar { width: 70px; height: 5px; border-radius: 9px; background: #e4e8e2; overflow: hidden; margin-top: 6px; }
-.confidence-bar i { display: block; height: 100%; background: #6c9d5b; }
 
 .document-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 17px; }
 .document-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 21px; }
@@ -304,7 +297,6 @@ progress { width: 100%; height: 8px; accent-color: var(--lime-dark); }
   .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .document-grid { grid-template-columns: 1fr 1fr; }
   .relation-summary { grid-template-columns: 130px 1fr; }
-  .confidence { display: none; }
   .failure-card { grid-template-columns: 1fr; }
   .toast { bottom: 82px; }
 }

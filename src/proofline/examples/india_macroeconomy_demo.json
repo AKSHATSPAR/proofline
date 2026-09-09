@@ -97,7 +97,7 @@
       "evidence_quote": "Although real gross domestic product (GDP)³ growth moderated to 6.5 per cent in 2024-25, India remained the fastest growing major economy.",
       "page_number": 8,
       "confidence": 0.99,
-      "extraction_note": "Footnote 3 on the same page identifies the data vintage as the Second Advance Estimate released on February 28, 2025.",
+      "extraction_note": "Footnote 3 identifies this as the later Second Advance Estimate, released on February 28, 2025.",
       "evidence_status": "exact",
       "extraction_method": "curated:source-verified"
     },
@@ -214,7 +214,7 @@
       "relation_type": "corroborates",
       "confidence": 0.99,
       "explanation": "The RBI and IMF reports give the same 6.5% real GDP growth for India in FY2024/25, using the same fiscal period and percentage unit.",
-      "decisive_context": ["same metric", "same fiscal year", "same value after spelling normalization"]
+      "decisive_context": ["same metric", "same fiscal year", "same reported value"]
     },
     {
       "id": "relation-contradicts-fy26-growth",
@@ -222,8 +222,8 @@
       "right_fact_id": "fact-imf-fy26-growth-forecast",
       "relation_type": "contradicts",
       "confidence": 0.94,
-      "explanation": "Both are forecasts for India's real GDP growth in FY2025/26, but the RBI projects 6.5% and the IMF projects 6.6%. Different publication vintages explain why forecasts may disagree, but the values are not equivalent, so this is a likely contradiction rather than a reconciliation.",
-      "decisive_context": ["same metric and period", "6.5% versus 6.6%", "different forecast vintages"]
+      "explanation": "Both are forecasts for India's real GDP growth in FY2025/26, but the RBI projects 6.5% and the IMF projects 6.6%. The forecasts were published at different times, but the reported values are still different, so this is a likely contradiction.",
+      "decisive_context": ["same metric and period", "6.5% versus 6.6%", "published at different times"]
     },
     {
       "id": "relation-reconciles-fy25-growth",
@@ -231,8 +231,8 @@
       "right_fact_id": "fact-rbi-fy25-growth",
       "relation_type": "reconciles",
       "confidence": 0.99,
-      "explanation": "The apparent 6.4% versus 6.5% conflict is a data-vintage revision: the Economic Survey cites the First Advance Estimate, while the later RBI report uses the Second Advance Estimate released on February 28, 2025.",
-      "decisive_context": ["First versus Second Advance Estimate", "later data vintage", "0.1 percentage-point revision"]
+      "explanation": "The apparent 6.4% versus 6.5% conflict comes from a revision. The Economic Survey cites the First Advance Estimate, while the later RBI report uses the Second Advance Estimate released on February 28, 2025.",
+      "decisive_context": ["First versus Second Advance Estimate", "later estimate", "0.1 percentage-point revision"]
     }
   ],
   "failures": [
@@ -241,13 +241,13 @@
       "stage": "table_header_binding",
       "page_number": 5,
       "chunk_index": 1,
-      "message": "Skipped a plausible merchandise-exports fact because a borderless table split decimal values across lines, making year-to-value binding unsafe.",
+      "message": "Could not safely match the merchandise-exports value to a year.",
       "recoverable": true,
       "details": {
         "candidate": "Merchandise exports were USD 456.1 billion in FY2022/23",
         "extracted_fragment": "Merchandise exports ... 429.2 456. 1 441. 4 441. 8 416. 3 409.5",
-        "handling": "Fail closed: keep the page and diagnostic, but do not promote the candidate into the fact layer.",
-        "next_step": "Add borderless-table or coordinate-based header binding, then rerun the same evidence checks."
+        "handling": "This result is shown for review and was not added to Facts.",
+        "next_step": "Review the table manually or retry after adding support for borderless tables."
       }
     }
   ]
